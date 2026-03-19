@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>axm-show · Drone Show Spoke</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700&family=Share+Tech+Mono&family=Source+Serif+4:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #080c12;
+  --bg2:      #0c1018;
+  --bg3:      #101520;
+  --border:   #1a2030;
+  --border2:  #223040;
+  --cyan:     #00d4ff;
+  --cyan2:    #00a8cc;
+  --cyan3:    #006688;
+  --green:    #00e87a;
+  --green2:   #00b85e;
+  --amber:    #f5a623;
+  --amber2:   #c8851c;
+  --red:      #ff4444;
+  --text:     #c8dae8;
+  --text2:    #7090a8;
+  --text3:    #3a5060;
+  --t0:       #ff4444;
+  --t1:       #f5a623;
+  --t2:       #8c5cf5;
+  --mono:     'Share Tech Mono', monospace;
+  --cond:     'Barlow Condensed', sans-serif;
+  --serif:    'Source Serif 4', serif;
+    --eco-bg:       #080c12;
+    --eco-border:   #1a2030;
+    --eco-text:     #506880;
+    --eco-text-hi:  #c8dae8;
+    --eco-accent:   #00d4ff;
+    --eco-mono:     'Share Tech Mono', monospace;
+  }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--cond);font-size:15px;line-height:1.5;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:0.4;}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,0.012) 2px,rgba(0,212,255,0.012) 4px);pointer-events:none;z-index:0;}
+.grid-bg{position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.03) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0;}
+.site-wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:0 32px;}
+nav{position:sticky;top:0;z-index:100;background:rgba(8,12,18,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);}
+.nav-inner{max-width:1100px;margin:0 auto;padding:0 32px;height:52px;display:flex;align-items:center;justify-content:space-between;}
+.nav-brand{display:flex;align-items:baseline;gap:12px;}
+.nav-brand .pkg{font-family:var(--mono);font-size:13px;color:var(--cyan);letter-spacing:0.05em;}
+.nav-brand .version{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.1em;}
+.nav-links{display:flex;gap:28px;list-style:none;}
+.nav-links a{font-family:var(--mono);font-size:10px;color:var(--text3);text-decoration:none;letter-spacing:0.12em;text-transform:uppercase;transition:color 0.15s;}
+.nav-links a:hover{color:var(--cyan);}
+.nav-links a.active{color:var(--cyan);border-bottom:2px solid var(--cyan);}
+.nav-status{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--green2);letter-spacing:0.1em;}
+.status-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse-dot 2s ease-in-out infinite;}
+@keyframes pulse-dot{0%,100%{opacity:0.5;transform:scale(1);}50%{opacity:1;transform:scale(1.3);}}
+.hero{padding:80px 0 64px;position:relative;overflow:hidden;}
+.hero-eyebrow{font-family:var(--mono);font-size:10px;color:var(--cyan3);letter-spacing:0.25em;text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px;}
+.hero-eyebrow::before{content:'';width:32px;height:1px;background:var(--cyan3);}
+.hero-title{font-family:var(--cond);font-size:clamp(52px,8vw,96px);font-weight:700;line-height:0.92;letter-spacing:-0.01em;color:var(--text);margin-bottom:8px;}
+.hero-title .accent{color:var(--cyan);}
+.hero-title .dim{color:var(--text3);}
+.hero-sub{font-family:var(--serif);font-size:16px;color:var(--text2);font-weight:300;font-style:italic;margin-bottom:40px;max-width:560px;line-height:1.6;}
+.hero-badges{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:40px;}
+.badge{font-family:var(--mono);font-size:9px;letter-spacing:0.15em;padding:4px 10px;border-radius:2px;border:1px solid;text-transform:uppercase;}
+.badge-cyan{color:var(--cyan);border-color:var(--cyan3);background:rgba(0,212,255,0.06);}
+.badge-green{color:var(--green2);border-color:rgba(0,232,122,0.3);background:rgba(0,232,122,0.05);}
+.badge-amber{color:var(--amber);border-color:rgba(245,166,35,0.3);background:rgba(245,166,35,0.05);}
+.pipeline{display:flex;align-items:center;gap:0;padding:0;margin-bottom:48px;overflow-x:auto;}
+.pipeline-step{display:flex;align-items:center;gap:0;flex-shrink:0;}
+.pipe-box{padding:10px 18px;background:var(--bg3);border:1px solid var(--border2);font-family:var(--mono);font-size:11px;color:var(--text2);letter-spacing:0.08em;}
+.pipe-box.highlight{border-color:var(--cyan3);color:var(--cyan);background:rgba(0,212,255,0.05);}
+.pipe-box.pass{border-color:rgba(0,232,122,0.3);color:var(--green2);background:rgba(0,232,122,0.04);}
+.pipe-arrow{font-family:var(--mono);font-size:11px;color:var(--text3);padding:0 6px;flex-shrink:0;}
+.section{padding:64px 0 48px;border-top:1px solid var(--border);}
+.section-header{display:flex;align-items:baseline;gap:16px;margin-bottom:36px;}
+.section-num{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.2em;min-width:32px;}
+.section-title{font-family:var(--cond);font-size:28px;font-weight:600;letter-spacing:0.03em;color:var(--text);text-transform:uppercase;}
+.section-title .accent{color:var(--cyan);}
+.section-line{flex:1;height:1px;background:linear-gradient(90deg,var(--border2),transparent);}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);}
+.card{background:var(--bg2);padding:24px;}
+.card-label{font-family:var(--mono);font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;}
+.card-value{font-family:var(--cond);font-size:22px;font-weight:600;color:var(--text);margin-bottom:8px;letter-spacing:0.02em;}
+.card-desc{font-size:12px;color:var(--text2);line-height:1.55;font-family:var(--serif);font-weight:300;}
+.tier-stack{display:flex;flex-direction:column;gap:1px;background:var(--border);border:1px solid var(--border);}
+.tier-row{display:grid;grid-template-columns:100px 140px 1fr auto;align-items:start;background:var(--bg2);padding:20px 24px;gap:24px;}
+.tier-num{font-family:var(--mono);font-size:22px;font-weight:400;letter-spacing:-0.02em;}
+.tier-0 .tier-num{color:var(--t0);}
+.tier-1 .tier-num{color:var(--t1);}
+.tier-2 .tier-num{color:var(--t2);}
+.tier-label{font-family:var(--cond);font-size:13px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;}
+.tier-0 .tier-label{color:var(--t0);}
+.tier-1 .tier-label{color:var(--t1);}
+.tier-2 .tier-label{color:var(--t2);}
+.tier-source{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.1em;margin-top:3px;}
+.tier-desc{font-size:13px;color:var(--text2);line-height:1.55;font-family:var(--serif);font-weight:300;}
+.tier-claims{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.1em;white-space:nowrap;}
+.tier-rule{grid-column:1/-1;padding:8px 0 0;font-family:var(--mono);font-size:10px;border-top:1px solid var(--border);margin-top:8px;}
+.tier-0 .tier-rule{color:rgba(255,68,68,0.7);}
+.tier-1 .tier-rule{color:rgba(245,166,35,0.7);}
+.tier-2 .tier-rule{color:rgba(140,92,245,0.7);}
+pre,code{font-family:var(--mono);}
+.code-block{background:#06090f;border:1px solid var(--border);border-left:3px solid var(--cyan3);padding:20px 24px;overflow-x:auto;font-size:11.5px;line-height:1.8;color:var(--text2);margin:0;}
+.code-block .kw{color:var(--cyan);}
+.code-block .str{color:#88c0d0;}
+.code-block .num{color:var(--amber);}
+.code-block .cm{color:var(--text3);font-style:italic;}
+.code-block .ok{color:var(--green2);}
+.code-block .hl{color:var(--text);}
+.code-block .fn{color:#b48ead;}
+.code-block .t0c{color:rgba(255,68,68,0.6);font-style:italic;}
+.code-block .t1c{color:rgba(245,166,35,0.6);font-style:italic;}
+.code-block .t2c{color:rgba(140,92,245,0.6);font-style:italic;}
+.code-header{background:var(--bg3);border:1px solid var(--border);border-bottom:none;border-left:3px solid var(--cyan3);padding:8px 24px;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.15em;}
+.onion-diagram{display:flex;align-items:center;gap:48px;padding:32px;background:var(--bg2);border:1px solid var(--border);}
+.onion-svg-wrap{flex-shrink:0;}
+.onion-modes{flex:1;display:flex;flex-direction:column;gap:16px;}
+.mode-row{display:flex;align-items:flex-start;gap:16px;padding:16px;border:1px solid var(--border);background:var(--bg);}
+.mode-ring{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.mode-ring-plan{background:var(--amber);}
+.mode-ring-compile{background:var(--green2);}
+.mode-ring-inspect{background:var(--cyan);}
+.mode-title{font-family:var(--cond);font-size:14px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;}
+.mode-title-plan{color:var(--amber);}
+.mode-title-compile{color:var(--green2);}
+.mode-title-inspect{color:var(--cyan);}
+.mode-ring-label{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.15em;margin-bottom:6px;}
+.mode-desc{font-size:12px;color:var(--text2);font-family:var(--serif);font-weight:300;line-height:1.55;}
+.kemt-box{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:28px;}
+.kemt-cell{background:var(--bg2);padding:16px 20px;}
+.kemt-key{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:5px;}
+.kemt-val{font-family:var(--cond);font-size:15px;font-weight:500;color:var(--text);letter-spacing:0.02em;}
+.kemt-val.amber{color:var(--amber);}
+.kemt-val.green{color:var(--green2);}
+.laanc-grid{display:flex;flex-direction:column;gap:1px;background:var(--border);border:1px solid var(--border);}
+.laanc-row{display:flex;justify-content:space-between;align-items:center;background:var(--bg2);padding:10px 16px;font-family:var(--mono);font-size:11px;}
+.laanc-zone{color:var(--text2);}
+.laanc-ceiling{color:var(--amber);}
+.laanc-ceiling.no-ops{color:var(--red);}
+.fallback-table{width:100%;border-collapse:collapse;border:1px solid var(--border);}
+.fallback-table th{background:var(--bg3);padding:8px 16px;text-align:left;font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.2em;text-transform:uppercase;border-bottom:1px solid var(--border2);font-weight:400;}
+.fallback-table td{padding:9px 16px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;}
+.fallback-table tr:last-child td{border-bottom:none;}
+.fallback-table tr:hover td{background:var(--bg3);}
+.fb-mode{color:var(--text2);}
+.fb-icon{font-size:13px;}
+.fb-action{color:var(--amber);}
+.fb-tier{display:inline-block;padding:1px 6px;border-radius:2px;font-size:8px;letter-spacing:0.1em;background:rgba(140,92,245,0.12);color:var(--t2);border:1px solid rgba(140,92,245,0.25);}
+.comm-tiers{display:flex;flex-direction:column;gap:1px;background:var(--border);border:1px solid var(--border);}
+.comm-row{display:grid;grid-template-columns:140px 220px 1fr;align-items:center;background:var(--bg2);padding:12px 20px;gap:20px;}
+.comm-tier-label{font-family:var(--mono);font-size:10px;color:var(--t2);letter-spacing:0.08em;}
+.comm-action{font-family:var(--mono);font-size:11px;color:var(--amber);}
+.comm-desc{font-size:12px;color:var(--text2);font-family:var(--serif);font-weight:300;}
+.shard-tree{background:#06090f;border:1px solid var(--border);border-left:3px solid var(--green);padding:20px 24px;font-family:var(--mono);font-size:11.5px;line-height:1.9;color:var(--text2);}
+.shard-tree .dir{color:var(--cyan2);}
+.shard-tree .file{color:var(--text);}
+.shard-tree .note{color:var(--text3);}
+.shard-tree .sig{color:var(--green2);}
+.req-table{width:100%;border-collapse:collapse;border:1px solid var(--border);}
+.req-table th{background:var(--bg3);padding:8px 16px;text-align:left;font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.2em;border-bottom:1px solid var(--border2);font-weight:400;}
+.req-table td{padding:10px 16px;border-bottom:1px solid var(--border);vertical-align:top;}
+.req-table tr:last-child td{border-bottom:none;}
+.req-id{font-family:var(--mono);font-size:11px;color:var(--cyan);}
+.req-title{font-family:var(--cond);font-size:13px;font-weight:500;color:var(--text);margin-bottom:3px;}
+.req-desc{font-size:11px;color:var(--text2);font-family:var(--serif);font-weight:300;line-height:1.5;}
+.req-pass{font-family:var(--mono);font-size:10px;color:var(--green2);letter-spacing:0.1em;}
+.qs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);}
+.qs-card{background:var(--bg2);padding:24px;}
+.qs-num{font-family:var(--mono);font-size:28px;color:var(--border2);margin-bottom:12px;letter-spacing:-0.02em;}
+.qs-title{font-family:var(--cond);font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--cyan);margin-bottom:12px;}
+.qs-code{background:#06090f;border:1px solid var(--border);padding:10px 14px;font-family:var(--mono);font-size:10.5px;color:var(--text2);line-height:1.7;margin-bottom:10px;overflow-x:auto;white-space:pre;}
+.qs-note{font-size:11px;color:var(--text3);font-family:var(--serif);font-weight:300;line-height:1.5;}
+.callout{padding:16px 20px;border-left:3px solid;margin:24px 0;font-size:12px;line-height:1.6;font-family:var(--serif);font-weight:300;}
+.callout-red{border-color:var(--red);background:rgba(255,68,68,0.06);color:rgba(255,180,180,0.9);}
+.callout-amber{border-color:var(--amber);background:rgba(245,166,35,0.06);color:rgba(245,200,130,0.9);}
+.callout-cyan{border-color:var(--cyan3);background:rgba(0,212,255,0.04);color:rgba(180,220,240,0.9);}
+.callout-label{font-family:var(--mono);font-size:9px;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:6px;}
+.callout-red .callout-label{color:var(--red);}
+.callout-amber .callout-label{color:var(--amber);}
+.callout-cyan .callout-label{color:var(--cyan2);}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+@media(max-width:700px){
+  .two-col{grid-template-columns:1fr;}
+  .tier-row{grid-template-columns:80px 1fr;}
+  .tier-claims{display:none;}
+  .comm-row{grid-template-columns:1fr;}
+  .kemt-box{grid-template-columns:1fr;}
+  .nav-links{display:none;}
+  .onion-diagram{flex-direction:column;}
+}
+footer{border-top:1px solid var(--border);padding:32px 0;margin-top:64px;}
+.footer-inner{max-width:1100px;margin:0 auto;padding:0 32px;display:flex;justify-content:space-between;align-items:center;}
+.footer-left{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.08em;line-height:1.8;}
+.footer-right{font-family:var(--serif);font-size:12px;color:var(--text3);font-style:italic;}
+.ecosystem{display:flex;gap:1px;background:var(--border);border:1px solid var(--border);margin-top:16px;flex-wrap:wrap;}
+.eco-item{background:var(--bg2);padding:8px 18px;font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.1em;white-space:nowrap;}
+.eco-item.current{color:var(--cyan);background:rgba(0,212,255,0.06);}
+.radar-wrap{position:absolute;right:-60px;top:20px;opacity:0.04;pointer-events:none;}
+@keyframes radar-sweep{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+.radar-arm{transform-origin:100px 100px;animation:radar-sweep 8s linear infinite;}
+</style>
+</head>
+<body>
+<!--
+  AXM Ecosystem Nav — shared across all pages
+  
+  USAGE: Paste this block at the top of <body> in each page.
+  Set data-active to the current page's key.
+  
+  The nav reads CSS custom properties from the host page:
+    --eco-bg       (fallback: #0e0e0f)
+    --eco-border   (fallback: #2a2a2e)  
+    --eco-text     (fallback: #666)
+    --eco-text-hi  (fallback: #e0e0e0)
+    --eco-accent   (fallback: #c8a84b)
+    --eco-mono     (fallback: 'DM Mono', monospace)
+  
+  Each page sets these in its :root {} to match its palette.
+-->
+<style>
+.eco-nav {
+  position: relative;
+  z-index: 900;
+  background: var(--eco-bg, #0e0e0f);
+  border-bottom: 1px solid var(--eco-border, #2a2a2e);
+  font-family: var(--eco-mono, 'DM Mono', monospace);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  user-select: none;
+}
+.eco-nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  height: 36px;
+  gap: 6px;
+}
+.eco-nav-brand {
+  color: var(--eco-text, #666);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-right: 12px;
+  white-space: nowrap;
+}
+.eco-nav-brand strong {
+  color: var(--eco-text-hi, #e0e0e0);
+  font-weight: 500;
+}
+.eco-nav-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--eco-border, #2a2a2e);
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+.eco-nav a {
+  color: var(--eco-text, #666);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+  position: relative;
+}
+.eco-nav a:hover {
+  color: var(--eco-text-hi, #e0e0e0);
+  background: rgba(255,255,255,0.03);
+}
+.eco-nav a.eco-active {
+  color: var(--eco-accent, #c8a84b);
+}
+.eco-nav a.eco-active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 10px;
+  right: 10px;
+  height: 1px;
+  background: var(--eco-accent, #c8a84b);
+  opacity: 0.6;
+}
+.eco-nav-kind {
+  font-size: 8px;
+  opacity: 0.5;
+  display: inline-block;
+  margin-left: 2px;
+  vertical-align: top;
+}
+.eco-nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.eco-nav-github {
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+.eco-nav-github:hover {
+  opacity: 0.8;
+}
+@media (max-width: 768px) {
+  .eco-nav-inner { 
+    overflow-x: auto; 
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .eco-nav-inner::-webkit-scrollbar { display: none; }
+  .eco-nav a { padding: 6px 7px; font-size: 9px; }
+  .eco-nav-brand { display: none; }
+}
+</style>
+
+<div class="eco-nav" data-active="show">
+  <div class="eco-nav-inner">
+    <div class="eco-nav-brand"><strong>AXM</strong> &nbsp;Protocol</div>
+    <div class="eco-nav-sep"></div>
+    <a href="https://bigbirdreturns.github.io/axm-genesis/" data-page="genesis">Genesis<span class="eco-nav-kind"> kernel</span></a>
+    <a href="https://bigbirdreturns.github.io/axm-core/" data-page="core">Core<span class="eco-nav-kind"> hub</span></a>
+    <div class="eco-nav-sep"></div>
+    <a href="https://bigbirdreturns.github.io/axm-chat/" data-page="chat">Chat<span class="eco-nav-kind"> spoke</span></a>
+    <a href="https://bigbirdreturns.github.io/axm-show/" data-page="show">Show<span class="eco-nav-kind"> spoke</span></a>
+    <a href="https://bigbirdreturns.github.io/axm-embodied/" data-page="embodied">Embodied<span class="eco-nav-kind"> spoke</span></a>
+    <div class="eco-nav-right">
+      <a href="https://github.com/BigBirdReturns" class="eco-nav-github" target="_blank" title="GitHub">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+// Auto-highlight active page based on data-active attribute
+(function() {
+  const nav = document.querySelector('.eco-nav');
+  if (!nav) return;
+  const active = nav.dataset.active;
+  if (active) {
+    const link = nav.querySelector(`[data-page="${active}"]`);
+    if (link) link.classList.add('eco-active');
+  }
+})();
+</script>
+
+<div class="grid-bg"></div>
+
+<nav>
+  <div class="nav-inner">
+    <div class="nav-brand">
+      <span class="pkg">axm-show</span>
+      <span class="version">v1.0.0</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#glass-onion">Glass Onion</a></li>
+      <li><a href="#tiers">Tiers</a></li>
+      <li><a href="#kemt">KEMT</a></li>
+      <li><a href="#schema">Schema</a></li>
+      <li><a href="#shard">Shard</a></li>
+      <li><a href="#quickstart">Quick Start</a></li>
+    </ul>
+    <div class="nav-status">
+      <div class="status-dot"></div>
+      axm-genesis v1.2.0
+    </div>
+  </div>
+</nav>
+
+<div class="site-wrap">
+  <section class="hero">
+    <div class="radar-wrap">
+      <svg width="200" height="200" viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r="90" fill="none" stroke="#00d4ff" stroke-width="1"/>
+        <circle cx="100" cy="100" r="60" fill="none" stroke="#00d4ff" stroke-width="0.5"/>
+        <circle cx="100" cy="100" r="30" fill="none" stroke="#00d4ff" stroke-width="0.5"/>
+        <line x1="100" y1="100" x2="100" y2="10" stroke="#00d4ff" stroke-width="1" class="radar-arm"/>
+      </svg>
+    </div>
+
+    <div class="hero-eyebrow">AXM Drone Show Spoke</div>
+    <h1 class="hero-title"><span class="dim">axm-</span><span class="accent">show</span></h1>
+    <p class="hero-sub">
+      Compiles a <code>show_spec.json</code> into a genesis-verifiable shard.
+      Same architecture as axm-embodied. Same relationship to genesis. Different domain.
+    </p>
+
+    <div class="hero-badges">
+      <span class="badge badge-cyan">show_spec.json → shard</span>
+      <span class="badge badge-green">axm-verify PASS</span>
+      <span class="badge badge-amber">ML-DSA-44 · post-quantum</span>
+      <span class="badge badge-cyan">KEMT reference spec</span>
+    </div>
+
+    <div class="pipeline">
+      <div class="pipeline-step">
+        <div class="pipe-box highlight">show_spec.json</div>
+        <div class="pipe-arrow">→</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="pipe-box highlight">show_compile.py</div>
+        <div class="pipe-arrow">→</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="pipe-box">axm_build.compiler_generic</div>
+        <div class="pipe-arrow">→</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="pipe-box">genesis-verifiable shard</div>
+        <div class="pipe-arrow">→</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="pipe-box pass">axm-verify PASS</div>
+      </div>
+    </div>
+
+    <div class="callout callout-red">
+      <div class="callout-label">Invariant</div>
+      No fork from the kernel. <code>compile_generic_shard</code> is the only path to a verifiable shard.
+      The show compiler is a spoke. It does not reimplement signing, hashing, or Merkle construction.
+    </div>
+
+    <div class="ecosystem">
+      <div class="eco-item">axm-genesis · kernel</div>
+      <div class="eco-item">axm-core · hub</div>
+      <div class="eco-item">axm-chat · spoke</div>
+      <div class="eco-item">axm-embodied · spoke</div>
+      <div class="eco-item current">▸ axm-show · spoke</div>
+    </div>
+  </section>
+
+  <!-- §01 -->
+  <section class="section" id="overview">
+    <div class="section-header">
+      <span class="section-num">§01</span>
+      <h2 class="section-title">What <span class="accent">Show</span> Does</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-label">Domain</div>
+        <div class="card-value">Drone Show</div>
+        <div class="card-desc">Takes an operator-authored show specification — venue, config, safety doctrine — and produces a cryptographically sealed, genesis-verifiable artifact.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Compiler</div>
+        <div class="card-value">show_compile.py</div>
+        <div class="card-desc">Parses <code>show_spec.json</code>, extracts claim candidates at three tiers, delegates to <code>compile_generic_shard</code>, then self-verifies before emitting. Never emits a failing shard.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Schema</div>
+        <div class="card-value">show_schema.py</div>
+        <div class="card-desc">Frozen interface between any authoring surface and the compiler. Validates airspace class, LAANC ceiling compliance, fallback behaviors, and comm degradation tiers.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">HTTP Bridge</div>
+        <div class="card-value">server.py</div>
+        <div class="card-desc">Flask bridge connecting the Glass Onion React planner UI to the real compiler and <code>axm-verify</code>. Endpoints: <code>/show/compile</code> and <code>/show/verify</code> on port 8410.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- §02 GLASS ONION -->
+  <section class="section" id="glass-onion">
+    <div class="section-header">
+      <span class="section-num">§02</span>
+      <h2 class="section-title">Glass Onion <span class="accent">Planner</span></h2>
+      <div class="section-line"></div>
+    </div>
+
+    <p style="font-family:var(--serif);font-weight:300;font-size:14px;color:var(--text2);max-width:700px;line-height:1.7;margin-bottom:28px;">
+      The Glass Onion UI is an intent router for show planning. State flows in one direction —
+      plan&nbsp;→&nbsp;compile&nbsp;→&nbsp;inspect — with no resets between modes.
+      The compiled spec is frozen at the moment you click Compile.
+    </p>
+
+    <div class="onion-diagram">
+      <div class="onion-svg-wrap">
+        <svg viewBox="0 0 220 220" width="220" height="220" style="display:block;">
+          <defs>
+            <radialGradient id="og2" cx="40%" cy="35%" r="60%">
+              <stop offset="0%" stop-color="rgba(255,255,255,0.04)"/>
+              <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+            </radialGradient>
+          </defs>
+          <!-- Inspect ring — innermost, kernel layer -->
+          <circle cx="110" cy="110" r="38" fill="#06101a" stroke="#1a4a6a" stroke-width="1.5"/>
+          <!-- Compile ring — core layer -->
+          <circle cx="110" cy="110" r="68" fill="#0d1a20" stroke="#1a3a50" stroke-width="1"/>
+          <!-- Plan ring — spoke layer -->
+          <circle cx="110" cy="110" r="100" fill="#111820" stroke="#1a3040" stroke-width="1"/>
+          <circle cx="110" cy="110" r="100" fill="url(#og2)" pointer-events="none"/>
+          <!-- Labels -->
+          <text x="110" y="32" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="rgba(0,212,255,0.55)" letter-spacing="1.5">PLAN</text>
+          <text x="110" y="46" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="5.5" fill="rgba(0,212,255,0.3)" letter-spacing="1">venue · config · doctrine</text>
+          <text x="110" y="82" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="6.5" fill="rgba(0,212,255,0.7)" letter-spacing="1.2">COMPILE</text>
+          <text x="110" y="95" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="5" fill="rgba(0,212,255,0.35)" letter-spacing="0.8">compile_generic_shard</text>
+          <text x="110" y="107" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="6" fill="rgba(255,255,255,0.75)" letter-spacing="0.8">INSPECT</text>
+          <text x="110" y="119" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="5" fill="rgba(140,200,255,0.45)" letter-spacing="0.5">claims · verify · tamper</text>
+          <!-- Flow arrows -->
+          <path d="M110,55 L110,70" stroke="rgba(0,212,255,0.2)" stroke-width="1" marker-end="url(#arr)"/>
+          <path d="M110,95 L110,102" stroke="rgba(0,212,255,0.2)" stroke-width="1"/>
+          <defs>
+            <marker id="arr" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto">
+              <path d="M0,0 L4,2 L0,4 Z" fill="rgba(0,212,255,0.3)"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+
+      <div class="onion-modes">
+        <div class="mode-row">
+          <div class="mode-ring mode-ring-plan"></div>
+          <div>
+            <div class="mode-title mode-title-plan">Plan Mode</div>
+            <div class="mode-ring-label">Outer ring · ⌘1</div>
+            <div class="mode-desc">Three tabs: Venue (locked T0 tile from FAA — airspace class, LAANC ceiling, geofence), Config (drone count, formation, altitude, duration), Doctrine (failure mode fallbacks + comm degradation tiers). Altitude exceeding LAANC ceiling blocks compilation.</div>
+          </div>
+        </div>
+        <div class="mode-row">
+          <div class="mode-ring mode-ring-compile"></div>
+          <div>
+            <div class="mode-title mode-title-compile">Compile Mode</div>
+            <div class="mode-ring-label">Middle ring · ⌘2</div>
+            <div class="mode-desc">Streams the compilation log. Validates spec, extracts T0/T1/T2 claim candidates, serializes source document, delegates to <code>compile_generic_shard</code> for Merkle construction and signing. All five REQs must pass before the shard is emitted.</div>
+          </div>
+        </div>
+        <div class="mode-row">
+          <div class="mode-ring mode-ring-inspect"></div>
+          <div>
+            <div class="mode-title mode-title-inspect">Inspect Mode</div>
+            <div class="mode-ring-label">Inner ring · ⌘3 (after compile)</div>
+            <div class="mode-desc">Six tabs: Claims (filterable by tier and subject), Graph, Provenance (doctrine chain), Source, Manifest, Verify. Includes a tamper test that flips one byte in the shard and re-runs <code>axm-verify</code> — confirm the failure mode works before the show.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- §03 TIERS -->
+  <section class="section" id="tiers">
+    <div class="section-header">
+      <span class="section-num">§03</span>
+      <h2 class="section-title">Three-Tier Claim <span class="accent">Architecture</span></h2>
+      <div class="section-line"></div>
+    </div>
+
+    <p style="font-family:var(--serif);font-weight:300;font-size:14px;color:var(--text2);max-width:700px;line-height:1.7;margin-bottom:28px;">
+      Every claim in the shard carries a tier. Tiers are not configuration — they are a semantic 
+      distinction baked into the schema. The compiler assigns them at extraction time based on 
+      which section of the spec the claim comes from.
+    </p>
+
+    <div class="tier-stack">
+      <div class="tier-row tier-0">
+        <div><div class="tier-num">T0</div></div>
+        <div>
+          <div class="tier-label">Regulatory</div>
+          <div class="tier-source">Source: venue{}</div>
+        </div>
+        <div>
+          <div class="tier-desc">Airspace classification, LAANC ceiling, authorization requirements, geofence geometry, FAA data provenance. These are facts derived from regulatory data, not operator choices. Signed as immutable claims.</div>
+          <div class="tier-rule">⊘  Cannot be overridden by any activation command · Compiler enforces at extraction time</div>
+        </div>
+        <div class="tier-claims">≈9 claims · venue{}</div>
+      </div>
+      <div class="tier-row tier-1">
+        <div><div class="tier-num">T1</div></div>
+        <div>
+          <div class="tier-label">Operational</div>
+          <div class="tier-source">Source: config{}</div>
+        </div>
+        <div>
+          <div class="tier-desc">Show name, drone count, formation type, maximum operating altitude, duration, launch time, geofence radius, minimum separation. What the operator configured. Subject to Tier 0 ceiling enforcement.</div>
+          <div class="tier-rule">⌾  Operator-authored · max_altitude_ft must be ≤ venue.laanc_ceiling_ft</div>
+        </div>
+        <div class="tier-claims">≈8 claims · config{}</div>
+      </div>
+      <div class="tier-row tier-2">
+        <div><div class="tier-num">T2</div></div>
+        <div>
+          <div class="tier-label">Contingency</div>
+          <div class="tier-source">Source: safety{}</div>
+        </div>
+        <div>
+          <div class="tier-desc">Failure mode fallback behaviors and comm degradation tier mappings. The doctrine the swarm executes when things go wrong. Pre-compiled — the drone looks up its tier, it does not reason at runtime.</div>
+          <div class="tier-rule">◈  Pre-compiled doctrine · Drone looks up tier, does not reason at runtime</div>
+        </div>
+        <div class="tier-claims">≈11 claims · safety{}</div>
+      </div>
+    </div>
+
+    <div class="callout callout-red" style="margin-top:24px;">
+      <div class="callout-label">Altitude Ceiling Enforcement</div>
+      The schema validator rejects any spec where <code>config.max_altitude_ft</code> exceeds 
+      <code>venue.laanc_ceiling_ft</code>. The Glass Onion UI shows a live violation warning and 
+      disables compilation. The compiler enforces this independently of the UI.
+    </div>
+  </section>
+
+  <!-- §04 KEMT -->
+  <section class="section" id="kemt">
+    <div class="section-header">
+      <span class="section-num">§04</span>
+      <h2 class="section-title">KEMT Reference <span class="accent">Spec</span></h2>
+      <div class="section-line"></div>
+    </div>
+
+    <p style="font-family:var(--serif);font-weight:300;font-size:14px;color:var(--text2);max-width:700px;line-height:1.7;margin-bottom:28px;">
+      The reference show specification targets KEMT — San Gabriel Valley Airport, El Monte CA.
+      Class D airspace, LAANC available with auto-approval ceiling at 200ft AGL.
+      The tile file is cached; replace with a live Aloft API pull when developer access is provisioned.
+    </p>
+
+    <div class="kemt-box">
+      <div class="kemt-cell">
+        <div class="kemt-key">Airport</div>
+        <div class="kemt-val">San Gabriel Valley Airport (KEMT)</div>
+      </div>
+      <div class="kemt-cell">
+        <div class="kemt-key">Location</div>
+        <div class="kemt-val">El Monte, CA · 34.0861°N, 118.0353°W</div>
+      </div>
+      <div class="kemt-cell">
+        <div class="kemt-key">Airspace Class</div>
+        <div class="kemt-val amber">Class D</div>
+      </div>
+      <div class="kemt-cell">
+        <div class="kemt-key">Tower Frequency</div>
+        <div class="kemt-val">121.2 MHz</div>
+      </div>
+      <div class="kemt-cell">
+        <div class="kemt-key">LAANC</div>
+        <div class="kemt-val green">Available · 200ft AGL auto-approval</div>
+      </div>
+      <div class="kemt-cell">
+        <div class="kemt-key">Authorization</div>
+        <div class="kemt-val amber">Required</div>
+      </div>
+      <div class="kemt-cell">
+        <div class="kemt-key">Elevation</div>
+        <div class="kemt-val">296ft MSL</div>
+      </div>
+      <div class="kemt-cell">
+        <div class="kemt-key">Overlying</div>
+        <div class="kemt-val">LAX Class B shelf at 5000ft MSL</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:10px;">LAANC AUTO-APPROVAL GRID</div>
+        <div class="laanc-grid">
+          <div class="laanc-row"><span class="laanc-zone">Airport surface</span><span class="laanc-ceiling no-ops">NO OPS</span></div>
+          <div class="laanc-row"><span class="laanc-zone">&lt;1nm from runway</span><span class="laanc-ceiling">100ft</span></div>
+          <div class="laanc-row"><span class="laanc-zone">1–2nm from runway</span><span class="laanc-ceiling">200ft</span></div>
+          <div class="laanc-row"><span class="laanc-zone">2–3.7nm (outer)</span><span class="laanc-ceiling">400ft</span></div>
+        </div>
+        <div class="callout callout-amber" style="margin-top:16px;">
+          <div class="callout-label">Tile File</div>
+          <code>tiles/kemt-sgv-v1.json</code> is a cached FAA tile. The compiler reads venue facts from this file and promotes them to Tier 0 claims. Replace with a live Aloft pull.
+        </div>
+      </div>
+      <div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:10px;">REFERENCE SHOW CONFIG</div>
+        <div class="laanc-grid">
+          <div class="laanc-row"><span class="laanc-zone">Show name</span><span class="laanc-ceiling">KEMT Demo Show Alpha</span></div>
+          <div class="laanc-row"><span class="laanc-zone">Drone count</span><span class="laanc-ceiling">50</span></div>
+          <div class="laanc-row"><span class="laanc-zone">Formation</span><span class="laanc-ceiling">grid</span></div>
+          <div class="laanc-row"><span class="laanc-zone">Max altitude</span><span class="laanc-ceiling">200ft AGL</span></div>
+          <div class="laanc-row"><span class="laanc-zone">Duration</span><span class="laanc-ceiling">480s (8 min)</span></div>
+          <div class="laanc-row"><span class="laanc-zone">Geofence</span><span class="laanc-ceiling">150m radius</span></div>
+          <div class="laanc-row"><span class="laanc-zone">Min separation</span><span class="laanc-ceiling">3.0m</span></div>
+          <div class="laanc-row"><span class="laanc-zone">Launch UTC</span><span class="laanc-ceiling">2026-03-15T03:00Z</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- §05 SCHEMA -->
+  <section class="section" id="schema">
+    <div class="section-header">
+      <span class="section-num">§05</span>
+      <h2 class="section-title">show_spec.json <span class="accent">Schema</span></h2>
+      <div class="section-line"></div>
+    </div>
+
+    <p style="font-family:var(--serif);font-weight:300;font-size:14px;color:var(--text2);max-width:700px;line-height:1.7;margin-bottom:28px;">
+      Three sections map directly to the three claim tiers. The schema is the frozen contract 
+      between any authoring surface and the compiler. Valid enum values are enforced at parse 
+      time by <code>show_schema.py</code>.
+    </p>
+
+    <div class="code-header">show_spec.json · KEMT reference (examples/kemt_show_spec.json)</div>
+<pre class="code-block"><span class="hl">{</span>
+  <span class="str">"schema_version"</span>: <span class="str">"1.0.0"</span>,
+
+  <span class="t0c">// ── TIER 0: Regulatory (venue facts, from FAA tile) ────────────────</span>
+  <span class="str">"venue"</span>: {
+    <span class="str">"name"</span>: <span class="str">"San Gabriel Valley Airport (KEMT)"</span>,
+    <span class="str">"latitude"</span>: <span class="num">34.0861</span>,
+    <span class="str">"longitude"</span>: <span class="num">-118.0353</span>,
+    <span class="str">"airspace_class"</span>: <span class="str">"D"</span>,          <span class="cm">// A B C D E G</span>
+    <span class="str">"max_altitude_agl_ft"</span>: <span class="num">400</span>,
+    <span class="str">"laanc_available"</span>: <span class="kw">true</span>,
+    <span class="str">"laanc_ceiling_ft"</span>: <span class="num">200</span>,
+    <span class="str">"authorization_required"</span>: <span class="kw">true</span>,
+    <span class="str">"tfrs_active"</span>: <span class="kw">false</span>,
+    <span class="str">"data_source"</span>: <span class="str">"cached"</span>,     <span class="cm">// aloft | airhub | manual | cached</span>
+    <span class="str">"data_retrieved_utc"</span>: <span class="str">"2026-03-01T12:00:00Z"</span>
+  },
+
+  <span class="t1c">// ── TIER 1: Operational (operator choices) ────────────────────────</span>
+  <span class="str">"config"</span>: {
+    <span class="str">"show_name"</span>: <span class="str">"KEMT Demo Show Alpha"</span>,
+    <span class="str">"drone_count"</span>: <span class="num">50</span>,
+    <span class="str">"formation_type"</span>: <span class="str">"grid"</span>,  <span class="cm">// grid | circle | wave | sphere | text | custom</span>
+    <span class="str">"max_altitude_ft"</span>: <span class="num">200</span>,        <span class="cm">// must be ≤ venue.laanc_ceiling_ft</span>
+    <span class="str">"duration_seconds"</span>: <span class="num">480</span>,
+    <span class="str">"launch_time_utc"</span>: <span class="str">"2026-03-15T03:00:00Z"</span>,
+    <span class="str">"geofence_radius_m"</span>: <span class="num">150</span>,
+    <span class="str">"min_separation_m"</span>: <span class="num">3.0</span>
+  },
+
+  <span class="t2c">// ── TIER 2: Contingency (failure mode doctrine) ───────────────────</span>
+  <span class="str">"safety"</span>: {
+    <span class="str">"wind_gust_fallback"</span>:       <span class="str">"hold_position"</span>,
+    <span class="str">"rf_jam_fallback"</span>:         <span class="str">"return_home"</span>,
+    <span class="str">"drone_failure_fallback"</span>:  <span class="str">"land_in_place"</span>,
+    <span class="str">"gps_spoof_fallback"</span>:      <span class="str">"return_home"</span>,
+    <span class="str">"battery_low_fallback"</span>:    <span class="str">"land_in_place"</span>,
+    <span class="str">"crowd_incursion_fallback"</span>:<span class="str">"hold_position"</span>,
+    <span class="str">"full_disconnect_fallback"</span>: <span class="str">"land_in_place"</span>,
+    <span class="str">"comm_degradation_tiers"</span>: {
+      <span class="str">"tier_0_full_mesh"</span>:       <span class="str">"execute_full_doctrine"</span>,
+      <span class="str">"tier_1_degraded_rf"</span>:     <span class="str">"execute_reduced_doctrine"</span>,
+      <span class="str">"tier_2_optical_only"</span>:    <span class="str">"loiter_or_rth"</span>,
+      <span class="str">"tier_3_full_disconnect"</span>: <span class="str">"land_in_place"</span>
+    }
+  }
+<span class="hl">}</span></pre>
+
+    <div style="margin-top:28px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:10px;">FAILURE MODE FALLBACKS · VALID VALUES</div>
+      <table class="fallback-table">
+        <thead><tr><th>Field</th><th>Icon</th><th>KEMT Default</th><th>Tier</th></tr></thead>
+        <tbody>
+          <tr><td class="fb-mode">wind_gust_fallback</td><td class="fb-icon">💨</td><td class="fb-action">hold_position</td><td><span class="fb-tier">T2</span></td></tr>
+          <tr><td class="fb-mode">rf_jam_fallback</td><td class="fb-icon">📡</td><td class="fb-action">return_home</td><td><span class="fb-tier">T2</span></td></tr>
+          <tr><td class="fb-mode">drone_failure_fallback</td><td class="fb-icon">⚡</td><td class="fb-action">land_in_place</td><td><span class="fb-tier">T2</span></td></tr>
+          <tr><td class="fb-mode">gps_spoof_fallback</td><td class="fb-icon">🛰</td><td class="fb-action">return_home</td><td><span class="fb-tier">T2</span></td></tr>
+          <tr><td class="fb-mode">battery_low_fallback</td><td class="fb-icon">🔋</td><td class="fb-action">land_in_place</td><td><span class="fb-tier">T2</span></td></tr>
+          <tr><td class="fb-mode">crowd_incursion_fallback</td><td class="fb-icon">👤</td><td class="fb-action">hold_position</td><td><span class="fb-tier">T2</span></td></tr>
+          <tr><td class="fb-mode">full_disconnect_fallback</td><td class="fb-icon">🔇</td><td class="fb-action">land_in_place</td><td><span class="fb-tier">T2</span></td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--text3);">
+        Valid values: <span style="color:var(--amber);">return_home</span> · <span style="color:var(--amber);">hold_position</span> · <span style="color:var(--amber);">land_in_place</span> · <span style="color:var(--amber);">safe_zone</span>
+      </div>
+    </div>
+
+    <div style="margin-top:28px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:10px;">COMM DEGRADATION TIERS</div>
+      <div class="comm-tiers">
+        <div class="comm-row">
+          <span class="comm-tier-label">T0 · Full Mesh</span>
+          <span class="comm-action">execute_full_doctrine</span>
+          <span class="comm-desc">All RF links nominal. Execute full choreography as compiled.</span>
+        </div>
+        <div class="comm-row">
+          <span class="comm-tier-label">T1 · Degraded RF</span>
+          <span class="comm-action">execute_reduced_doctrine</span>
+          <span class="comm-desc">Partial link loss. Fall back to the reduced-complexity doctrine subset.</span>
+        </div>
+        <div class="comm-row">
+          <span class="comm-tier-label">T2 · Optical Only</span>
+          <span class="comm-action">loiter_or_rth</span>
+          <span class="comm-desc">RF lost, visual references only. Hold position or return home depending on fuel state.</span>
+        </div>
+        <div class="comm-row">
+          <span class="comm-tier-label">T3 · Full Disconnect</span>
+          <span class="comm-action">land_in_place</span>
+          <span class="comm-desc">All communications lost. Land immediately at current position.</span>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-family:var(--serif);font-size:12px;color:var(--text3);line-height:1.6;">
+        Each tier maps to a pre-compiled doctrine subset. The drone looks up its tier — it does not reason about it at runtime.
+      </div>
+    </div>
+  </section>
+
+  <!-- §06 SHARD -->
+  <section class="section" id="shard">
+    <div class="section-header">
+      <span class="section-num">§06</span>
+      <h2 class="section-title">Shard <span class="accent">Layout</span></h2>
+      <div class="section-line"></div>
+    </div>
+    <p style="color:var(--text);font-size:15px;line-height:1.8;max-width:640px;">
+      Show shards follow the standard AXM Genesis shard format. Same manifest, same Merkle tree, same ML-DSA-44 signature. The show compiler extracts venue, config, and safety claims from <code style="color:var(--cyan)">show_spec.json</code> and delegates to <code style="color:var(--cyan)">compile_generic_shard</code>.
+    </p>
+    <p style="margin-top:16px;">
+      <a href="https://bigbirdreturns.github.io/axm-genesis/#shard" style="color:var(--cyan);text-decoration:none;border-bottom:1px solid rgba(0,212,255,0.3);font-size:14px;">Full shard format specification on Genesis →</a>
+    </p>
+  </section>
+
+  <!-- §07 QUICK START -->
+  <section class="section" id="quickstart">
+    <div class="section-header">
+      <span class="section-num">§07</span>
+      <h2 class="section-title">Quick <span class="accent">Start</span></h2>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="qs-grid">
+      <div class="qs-card">
+        <div class="qs-num">01</div>
+        <div class="qs-title">Install</div>
+        <pre class="qs-code">pip install axm-genesis
+pip install -e .</pre>
+        <div class="qs-note">Install the genesis kernel dependency first, then the spoke in editable mode.</div>
+      </div>
+      <div class="qs-card">
+        <div class="qs-num">02</div>
+        <div class="qs-title">Compile</div>
+        <pre class="qs-code">axm-show-compile \
+  examples/kemt_show_spec.json \
+  show_shard/</pre>
+        <div class="qs-note">Compiles the KEMT reference spec using ML-DSA-44 (default). Self-verifies before emitting.</div>
+      </div>
+      <div class="qs-card">
+        <div class="qs-num">03</div>
+        <div class="qs-title">Verify</div>
+        <pre class="qs-code">axm-verify shard show_shard/
+
+# {"status":"PASS",
+#  "error_count":0,
+#  "errors":[]}</pre>
+        <div class="qs-note">All five REQs checked. Trust the shard only when <code>status</code> is <code>PASS</code>.</div>
+      </div>
+      <div class="qs-card">
+        <div class="qs-num">04</div>
+        <div class="qs-title">Run Server</div>
+        <pre class="qs-code">cd axm-show-server/
+python server.py
+# http://localhost:8410</pre>
+      </div>
+    </div>
+
+    <div style="margin-top:28px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:10px;">GOLD SHARDS · REPRODUCIBLE TEST ARTIFACTS</div>
+      <div class="code-header">CLI</div>
+<pre class="code-block"><span class="cm"># Ed25519 + canonical timestamp → reproducible gold shard</span>
+axm-show-compile examples/kemt_show_spec.json show_shard/ <span class="kw">--gold</span>
+
+<span class="cm"># Explicit suite selection</span>
+axm-show-compile examples/kemt_show_spec.json show_shard/ <span class="kw">--suite</span> <span class="str">ed25519</span>
+axm-show-compile examples/kemt_show_spec.json show_shard/ <span class="kw">--suite</span> <span class="str">mldsa44</span>  <span class="cm"># default</span>
+
+<span class="cm"># Test suite (4 tests expected PASS)</span>
+pytest tests/ -v
+<span class="ok">  test_kemt_spec_validates              PASSED</span>
+<span class="ok">  test_kemt_spec_compiles               PASSED</span>
+<span class="ok">  test_show_shard_verifies              PASSED</span>
+<span class="ok">  test_altitude_ceiling_enforcement     PASSED</span></pre>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-left">
+      axm-show v1.0.0 · depends on axm-genesis v1.2.0<br>
+      Apache-2.0 · KEMT tile: FAA / Aloft · El Monte, CA
+    </div>
+    <div class="footer-right">rings route intent — state flows once</div>
+  </div>
+</footer>
+
+<script>
+// Nav active state on scroll
+const navLinks = document.querySelectorAll('.nav-links a');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      navLinks.forEach(a => {
+        a.classList.toggle('active', a.getAttribute('href') === `#${id}`);
+      });
+    }
+  });
+}, { threshold: 0.25 });
+document.querySelectorAll('section[id]').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
