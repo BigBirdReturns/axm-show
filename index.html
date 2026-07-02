@@ -364,7 +364,7 @@ footer{border-top:1px solid var(--border);padding:32px 0;margin-top:64px;}
   <div class="nav-inner">
     <div class="nav-brand">
       <span class="pkg">axm-show</span>
-      <span class="version">v1.0.0</span>
+      <span class="version">v2.0.0</span>
     </div>
     <ul class="nav-links">
       <li><a href="#overview">Overview</a></li>
@@ -377,7 +377,7 @@ footer{border-top:1px solid var(--border);padding:32px 0;margin-top:64px;}
     </ul>
     <div class="nav-status">
       <div class="status-dot"></div>
-      axm-genesis v1.2.0
+      axm-genesis v1 · frozen kernel
     </div>
   </div>
 </nav>
@@ -403,7 +403,8 @@ footer{border-top:1px solid var(--border);padding:32px 0;margin-top:64px;}
     <div class="hero-badges">
       <span class="badge badge-cyan">show_spec.json → shard</span>
       <span class="badge badge-green">axm-verify PASS</span>
-      <span class="badge badge-amber">ML-DSA-44 · post-quantum</span>
+      <span class="badge badge-amber">axm-hybrid1 · Ed25519 ‖ ML-DSA-44</span>
+      <span class="badge badge-amber">sh1_ derived identity</span>
       <span class="badge badge-cyan">KEMT reference spec</span>
     </div>
 
@@ -431,8 +432,8 @@ footer{border-top:1px solid var(--border);padding:32px 0;margin-top:64px;}
 
     <div class="callout callout-red">
       <div class="callout-label">Invariant</div>
-      No fork from the kernel. <code>compile_generic_shard</code> is the only path to a verifiable shard.
-      The show compiler is a spoke. It does not reimplement signing, hashing, or Merkle construction.
+      Genesis compiles and signs; everything else reads. <code>compile_generic_shard</code> is the only path to a verifiable shard.
+      The show compiler is a spoke. It does not reimplement signing, hashing, Merkle construction, identity derivation, or key handling.
     </div>
 
     <div class="ecosystem">
@@ -460,7 +461,7 @@ footer{border-top:1px solid var(--border);padding:32px 0;margin-top:64px;}
       <div class="card">
         <div class="card-label">Compiler</div>
         <div class="card-value">show_compile.py</div>
-        <div class="card-desc">Parses <code>show_spec.json</code>, extracts claim candidates at three tiers, delegates to <code>compile_generic_shard</code>, then self-verifies before emitting. Never emits a failing shard.</div>
+        <div class="card-desc">Parses <code>show_spec.json</code>, extracts claim candidates at three tiers, delegates to <code>compile_generic_shard</code>, which writes the shard and self-verifies it against the publisher key. Never emits a failing shard.</div>
       </div>
       <div class="card">
         <div class="card-label">Schema</div>
@@ -470,7 +471,7 @@ footer{border-top:1px solid var(--border);padding:32px 0;margin-top:64px;}
       <div class="card">
         <div class="card-label">HTTP Bridge</div>
         <div class="card-value">server.py</div>
-        <div class="card-desc">Flask bridge connecting the Glass Onion React planner UI to the real compiler and <code>axm-verify</code>. Endpoints: <code>/show/compile</code> and <code>/show/verify</code> on port 8410.</div>
+        <div class="card-desc">Flask bridge connecting the Glass Onion React planner UI to the real compiler and <code>axm-verify</code>. Endpoints: <code>/show/compile</code> and <code>/show/verify</code> on port 8400. Verifies against its own publisher key, held out of band — never the key embedded in the shard.</div>
       </div>
     </div>
   </section>
@@ -537,7 +538,7 @@ footer{border-top:1px solid var(--border);padding:32px 0;margin-top:64px;}
           <div>
             <div class="mode-title mode-title-compile">Compile Mode</div>
             <div class="mode-ring-label">Middle ring · ⌘2</div>
-            <div class="mode-desc">Streams the compilation log. Validates spec, extracts T0/T1/T2 claim candidates, serializes source document, delegates to <code>compile_generic_shard</code> for Merkle construction and signing. All five REQs must pass before the shard is emitted.</div>
+            <div class="mode-desc">Streams the compilation log. Validates spec, extracts T0/T1/T2 claim candidates, serializes source document, delegates to <code>compile_generic_shard</code> for Merkle construction and hybrid signing. All four kernel requirements must pass before the shard is emitted.</div>
           </div>
         </div>
         <div class="mode-row">
@@ -672,8 +673,8 @@ footer{border-top:1px solid var(--border);padding:32px 0;margin-top:64px;}
           <div class="laanc-row"><span class="laanc-zone">2–3.7nm (outer)</span><span class="laanc-ceiling">400ft</span></div>
         </div>
         <div class="callout callout-amber" style="margin-top:16px;">
-          <div class="callout-label">Tile File</div>
-          <code>tiles/kemt-sgv-v1.json</code> is a cached FAA tile. The compiler reads venue facts from this file and promotes them to Tier 0 claims. Replace with a live Aloft pull.
+          <div class="callout-label">Airspace Data</div>
+          The KEMT venue facts are a cached FAA snapshot embedded in <code>examples/kemt_show_spec.json</code> (<code>data_source</code>, <code>data_retrieved_utc</code>). The compiler promotes them to Tier 0 claims. Replace with a live Aloft pull when developer access is provisioned.
         </div>
       </div>
       <div>
@@ -812,7 +813,7 @@ footer{border-top:1px solid var(--border);padding:32px 0;margin-top:64px;}
       <div class="section-line"></div>
     </div>
     <p style="color:var(--text);font-size:15px;line-height:1.8;max-width:640px;">
-      Show shards follow the standard AXM Genesis shard format. Same manifest, same Merkle tree, same ML-DSA-44 signature. The show compiler extracts venue, config, and safety claims from <code style="color:var(--cyan)">show_spec.json</code> and delegates to <code style="color:var(--cyan)">compile_generic_shard</code>.
+      Show shards follow the frozen AXM Genesis v1 shard format. Same canonical manifest, same Merkle tree, same hybrid <code style="color:var(--cyan)">axm-hybrid1</code> signature (Ed25519 ‖ ML-DSA-44). Tables are canonical JSONL; the manifest carries no shard id — identity is derived, never stored: <code style="color:var(--cyan)">sh1_</code> + BLAKE3 of the manifest bytes. The show compiler extracts venue, config, and safety claims from <code style="color:var(--cyan)">show_spec.json</code> and delegates to <code style="color:var(--cyan)">compile_generic_shard</code>.
     </p>
     <p style="margin-top:16px;">
       <a href="https://bigbirdreturns.github.io/axm-genesis/#shard" style="color:var(--cyan);text-decoration:none;border-bottom:1px solid rgba(0,212,255,0.3);font-size:14px;">Full shard format specification on Genesis →</a>
@@ -831,53 +832,65 @@ footer{border-top:1px solid var(--border);padding:32px 0;margin-top:64px;}
       <div class="qs-card">
         <div class="qs-num">01</div>
         <div class="qs-title">Install</div>
-        <pre class="qs-code">pip install axm-genesis
+        <pre class="qs-code">pip install \
+  'axm-genesis[mldsa-compat]'
 pip install -e .</pre>
-        <div class="qs-note">Install the genesis kernel dependency first, then the spoke in editable mode.</div>
+        <div class="qs-note">Install the frozen v1 kernel first (with an ML-DSA-44 backend), then the spoke in editable mode.</div>
       </div>
       <div class="qs-card">
         <div class="qs-num">02</div>
-        <div class="qs-title">Compile</div>
-        <pre class="qs-code">axm-show-compile \
-  examples/kemt_show_spec.json \
-  show_shard/</pre>
-        <div class="qs-note">Compiles the KEMT reference spec using ML-DSA-44 (default). Self-verifies before emitting.</div>
+        <div class="qs-title">Keygen</div>
+        <pre class="qs-code">axm-build keygen \
+  /secure/axm-keys \
+  --name publisher</pre>
+        <div class="qs-note">One hybrid publisher identity. The 3904-byte <code>.key</code> blob stays offline; only the 1344-byte <code>.pub</code> is ever distributed. There is deliberately no default key.</div>
       </div>
       <div class="qs-card">
         <div class="qs-num">03</div>
-        <div class="qs-title">Verify</div>
-        <pre class="qs-code">axm-verify shard show_shard/
-
-# {"status":"PASS",
-#  "error_count":0,
-#  "errors":[]}</pre>
-        <div class="qs-note">All five REQs checked. Trust the shard only when <code>status</code> is <code>PASS</code>.</div>
+        <div class="qs-title">Compile</div>
+        <pre class="qs-code">axm-show-compile \
+  examples/kemt_show_spec.json \
+  show_shard/ \
+  --key /secure/axm-keys/publisher.key</pre>
+        <div class="qs-note">Compiles the KEMT reference spec under <code>axm-hybrid1</code> and prints the derived <code>sh1_</code> shard identity.</div>
       </div>
       <div class="qs-card">
         <div class="qs-num">04</div>
+        <div class="qs-title">Verify</div>
+        <pre class="qs-code">axm-verify shard show_shard/ \
+  --trusted-key publisher.pub
+
+# {"status":"PASS",
+#  "error_count":0, "errors":[]}</pre>
+        <div class="qs-note">All four kernel requirements checked against a trusted key supplied out of band. Trust the shard only when <code>status</code> is <code>PASS</code>.</div>
+      </div>
+      <div class="qs-card">
+        <div class="qs-num">05</div>
         <div class="qs-title">Run Server</div>
-        <pre class="qs-code">cd axm-show-server/
-python server.py
-# http://localhost:8410</pre>
+        <pre class="qs-code">AXM_SHOW_KEY=publisher.key \
+  python server/server.py
+# http://localhost:8400</pre>
+        <div class="qs-note">Without <code>AXM_SHOW_KEY</code> the server signs with an ephemeral keypair — demo only, proves integrity, never authenticity.</div>
       </div>
     </div>
 
     <div style="margin-top:28px;">
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:10px;">GOLD SHARDS · REPRODUCIBLE TEST ARTIFACTS</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:10px;">REPRODUCIBLE BUILDS · CONFORMANCE ROUNDTRIP</div>
       <div class="code-header">CLI</div>
-<pre class="code-block"><span class="cm"># Ed25519 + canonical timestamp → reproducible gold shard</span>
-axm-show-compile examples/kemt_show_spec.json show_shard/ <span class="kw">--gold</span>
+<pre class="code-block"><span class="cm"># Same spec + same key + fixed timestamp → byte-identical manifest, identical sh1_ id</span>
+axm-show-compile examples/kemt_show_spec.json show_shard/ \
+  <span class="kw">--key</span> publisher.key <span class="kw">--created-at</span> <span class="str">2026-07-02T00:00:00Z</span>
 
-<span class="cm"># Explicit suite selection</span>
-axm-show-compile examples/kemt_show_spec.json show_shard/ <span class="kw">--suite</span> <span class="str">ed25519</span>
-axm-show-compile examples/kemt_show_spec.json show_shard/ <span class="kw">--suite</span> <span class="str">mldsa44</span>  <span class="cm"># default</span>
-
-<span class="cm"># Test suite (4 tests expected PASS)</span>
+<span class="cm"># Test suite: the conformance habit — build → verify PASS → tamper → FAIL</span>
 pytest tests/ -v
 <span class="ok">  test_kemt_spec_validates              PASSED</span>
-<span class="ok">  test_kemt_spec_compiles               PASSED</span>
-<span class="ok">  test_show_shard_verifies              PASSED</span>
-<span class="ok">  test_altitude_ceiling_enforcement     PASSED</span></pre>
+<span class="ok">  test_build_verify_tamper_roundtrip    PASSED</span>
+<span class="ok">  test_wrong_trusted_key_fails          PASSED</span>
+<span class="ok">  test_no_key_refuses                   PASSED</span>
+<span class="ok">  test_bad_key_length_refuses           PASSED</span>
+<span class="ok">  test_altitude_ceiling_enforcement     PASSED</span>
+<span class="ok">  test_candidate_count                  PASSED</span>
+<span class="ok">  test_reproducible_build               PASSED</span></pre>
     </div>
   </section>
 </div>
@@ -885,8 +898,8 @@ pytest tests/ -v
 <footer>
   <div class="footer-inner">
     <div class="footer-left">
-      axm-show v1.0.0 · depends on axm-genesis v1.2.0<br>
-      Apache-2.0 · KEMT tile: FAA / Aloft · El Monte, CA
+      axm-show v2.0.0 · depends on axm-genesis ≥1.0.0rc1,&lt;2 (frozen v1 kernel)<br>
+      Apache-2.0 · KEMT airspace data: FAA / Aloft · El Monte, CA
     </div>
     <div class="footer-right">rings route intent — state flows once</div>
   </div>

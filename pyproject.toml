@@ -4,23 +4,43 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "axm-show"
-version = "1.0.0"
+version = "2.0.0"
 description = "Drone show spoke for AXM — compiles show_spec.json into genesis-verifiable shards"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
 dependencies = [
-  "axm-genesis>=1.2.0",
+  # The kernel — the only package allowed to compile and sign shards.
+  # The frozen v1 kernel guarantees every 1.x verifies our shards
+  # (COMPATIBILITY.md in axm-genesis); minimum-plus-major-cap is the
+  # convention — never an exact pin.
+  # The [mldsa-compat] extra pulls the pure-Python ML-DSA-44 backend needed
+  # for signing; install [mldsa] (liboqs) instead where the C library is
+  # available.
+  "axm-genesis[mldsa-compat]>=1.0.0rc1,<2",
   "click>=8.0.0",
+  "blake3>=0.4.0",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=7.0",
 ]
+server = [
+  "flask>=3.0",
+]
+
+[project.entry-points."axm.spokes"]
+# axm-core discovers spokes through this group: the key becomes the
+# subcommand under `axm`, the value must resolve to a click.Group.
+show = "axm_show.show_compile:show_group"
 
 [project.scripts]
+# Standalone CLI so the spoke also works without axm-core installed.
 axm-show-compile = "axm_show.show_compile:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

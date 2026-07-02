@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0.0",
+  "venue": {
+    "name": "San Gabriel Valley Airport (KEMT)",
+    "latitude": 34.0861,
+    "longitude": -118.0353,
+    "airspace_class": "D",
+    "max_altitude_agl_ft": 400,
+    "laanc_available": true,
+    "laanc_ceiling_ft": 200,
+    "authorization_required": true,
+    "tfrs_active": false,
+    "data_source": "aloft",
+    "data_retrieved_utc": "2026-03-01T12:00:00Z"
+  },
+  "config": {
+    "show_name": "KEMT Demo Show Alpha",
+    "drone_count": 50,
+    "formation_type": "grid",
+    "max_altitude_ft": 200,
+    "duration_seconds": 480,
+    "launch_time_utc": "2026-03-15T03:00:00Z",
+    "geofence_radius_m": 150,
+    "min_separation_m": 3.0
+  },
+  "safety": {
+    "wind_gust_fallback": "hold_position",
+    "rf_jam_fallback": "return_home",
+    "drone_failure_fallback": "land_in_place",
+    "gps_spoof_fallback": "return_home",
+    "battery_low_fallback": "land_in_place",
+    "crowd_incursion_fallback": "hold_position",
+    "full_disconnect_fallback": "land_in_place",
+    "comm_degradation_tiers": {
+      "tier_0_full_mesh": "execute_full_doctrine",
+      "tier_1_degraded_rf": "execute_reduced_doctrine",
+      "tier_2_optical_only": "loiter_or_rth",
+      "tier_3_full_disconnect": "land_in_place"
+    }
+  }
+}

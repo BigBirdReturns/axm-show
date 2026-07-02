@@ -7,54 +7,43 @@ Show Shard Compiler
 
 Compiles a show_spec.json into a genesis-verifiable shard.
 
-This follows the exact same pattern as compile.py and bounds.py:
+The spoke owns exactly three things (docs/ADOPTING.md in axm-genesis):
+domain extraction, its CLI, and its dependency declarations. Everything
+else — compilation, signing, Merkle construction, identity derivation —
+is the kernel's:
+
   1. Parse domain-specific input (show_spec.json)
-  2. Extract candidates (subject/predicate/object/tier/evidence triples)
-  3. Delegate to compile_generic_shard (the only path to a verifiable shard)
-  4. Self-verify before emitting
+  2. Extract candidates (subject/predicate/object/tier/evidence)
+  3. Delegate to compile_generic_shard (the only path to a verifiable shard;
+     it writes the shard AND self-verifies it against the publisher key)
 
 Usage:
-    axm-show-compile <show_spec.json> <out_dir>
-    axm-show-compile show_spec.json show_shard/ --suite ed25519
-    axm-show-compile show_spec.json show_shard/ --gold
+    axm-show-compile <show_spec.json> <out_dir> --key <publisher.key>
 
-The output shard passes: axm-verify shard <out_dir>
+The output shard passes:
+    axm-verify shard <out_dir> --trusted-key <publisher.pub>
 
-Dependency chain:
-    planner UI (or CLI)        ->  show_spec.json
-    show_compile.py            ->  show_shard/      (this file)
-    show_schema.py                                  (validation + parsing)
-    axm_build.compiler_generic                      (canonical shard compilation)
-    axm_verify.logic                                (self-verification gate)
+There is deliberately no default signing key. A signature under a
+published key proves integrity, never authenticity — generate a keypair
+with `axm-build keygen` and keep the secret blob out of the repository.
 """
 from __future__ import annotations
 
 import json
 import tempfile
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
+import blake3
 import click
 
-# Genesis compiler: the only path to a verifiable shard
+# Genesis kernel: the only path to a verifiable shard
+from axm_build.common import normalize_source_text
 from axm_build.compiler_generic import CompilerConfig, compile_generic_shard
-from axm_build.sign import (
-    SUITE_ED25519,
-    SUITE_MLDSA44,
-    mldsa44_keygen,
-    signing_key_from_private_key_bytes,
-)
-from axm_verify.logic import verify_shard as _verify_shard
+from axm_build.sign import HYBRID1_SK_LEN
 
 # Show schema: validation and parsing
-from axm_show.show_schema import validate_show_spec, parse_show_spec
-
-# Canonical demo key (Ed25519, matches governance/trust_store.json)
-_CANONICAL_PUBLISHER_SEED = bytes.fromhex(
-    "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
-)
-GOLD_TIMESTAMP = "2026-01-01T00:00:00Z"
+from axm_show.show_schema import validate_show_spec
 
 _NAMESPACE = "embodied/show"
 _PUBLISHER_ID = "@axm_show"
@@ -69,14 +58,14 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
     """Extract genesis-compatible candidates from a show spec.
 
     Each candidate has: subject, predicate, object, object_type, tier, evidence.
-    Evidence must appear exactly once in the source text.
+    Evidence must appear exactly once in the normalized source text;
     compile_generic_shard enforces this.
     """
     candidates: list[dict] = []
 
     # We need evidence strings that are unique substrings of source_text.
-    # Since source_text IS the JSON, we use carefully constructed key:value
-    # pairs that appear exactly once in the serialized document.
+    # Since source_text IS the (normalized) JSON, we use key:value pairs
+    # that appear exactly once in the serialized document.
 
     venue = spec_raw.get("venue", {})
     config = spec_raw.get("config", {})
@@ -94,6 +83,9 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
                 "evidence": evidence,
             })
 
+    def _json_bool(value: bool) -> str:
+        return "true" if value else "false"
+
     # --- Tier 0: Venue / Regulatory (facts, not choices) ---
 
     # Each evidence string is a unique JSON fragment from the source
@@ -104,20 +96,20 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
          f'"airspace_class": "{venue["airspace_class"]}"')
 
     _add("show/venue", "max_altitude_agl_ft", str(venue["max_altitude_agl_ft"]),
-         "literal:decimal", 0,
+         "literal:integer", 0,
          f'"max_altitude_agl_ft": {venue["max_altitude_agl_ft"]}')
 
-    _add("show/venue", "laanc_available", str(venue["laanc_available"]).lower(),
-         "literal:string", 0,
-         f'"laanc_available": {str(venue["laanc_available"]).lower()}')
+    _add("show/venue", "laanc_available", _json_bool(venue["laanc_available"]),
+         "literal:boolean", 0,
+         f'"laanc_available": {_json_bool(venue["laanc_available"])}')
 
     _add("show/venue", "laanc_ceiling_ft", str(venue.get("laanc_ceiling_ft", "")),
-         "literal:decimal", 0,
+         "literal:integer", 0,
          f'"laanc_ceiling_ft": {venue.get("laanc_ceiling_ft", 0)}')
 
     _add("show/venue", "authorization_required",
-         str(venue["authorization_required"]).lower(), "literal:string", 0,
-         f'"authorization_required": {str(venue["authorization_required"]).lower()}')
+         _json_bool(venue["authorization_required"]), "literal:boolean", 0,
+         f'"authorization_required": {_json_bool(venue["authorization_required"])}')
 
     _add("show/venue", "latitude", str(venue["latitude"]), "literal:decimal", 0,
          f'"latitude": {venue["latitude"]}')
@@ -140,7 +132,7 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
          f'"show_name": "{config["show_name"]}"')
 
     _add("show/config", "drone_count", str(config["drone_count"]),
-         "literal:decimal", 1,
+         "literal:integer", 1,
          f'"drone_count": {config["drone_count"]}')
 
     _add("show/config", "formation_type", config["formation_type"],
@@ -148,11 +140,11 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
          f'"formation_type": "{config["formation_type"]}"')
 
     _add("show/config", "max_altitude_ft", str(config["max_altitude_ft"]),
-         "literal:decimal", 1,
+         "literal:integer", 1,
          f'"max_altitude_ft": {config["max_altitude_ft"]}')
 
     _add("show/config", "duration_seconds", str(config["duration_seconds"]),
-         "literal:decimal", 1,
+         "literal:integer", 1,
          f'"duration_seconds": {config["duration_seconds"]}')
 
     if config.get("geofence_radius_m"):
@@ -201,32 +193,60 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
 # Compile
 # ---------------------------------------------------------------------------
 
+def _load_secret_key(key_path: "Path | None", secret_key: "bytes | None") -> bytes:
+    if secret_key is None:
+        if key_path is None:
+            raise ValueError(
+                "A signing key is required: pass key_path (the 3904-byte "
+                "axm-hybrid1 secret key blob written by `axm-build keygen`) "
+                "or secret_key bytes. There is deliberately no default key."
+            )
+        secret_key = Path(key_path).read_bytes()
+    if len(secret_key) != HYBRID1_SK_LEN:
+        raise ValueError(
+            f"Signing key is not a {HYBRID1_SK_LEN}-byte axm-hybrid1 secret "
+            f"key blob (got {len(secret_key)} bytes). Generate one with: "
+            f"axm-build keygen <outdir> --name <publisher>"
+        )
+    return secret_key
+
+
 def compile_show(
     spec_path: "Path | None",
     out_path: Path,
-    signing_key: "bytes | None" = None,
-    timestamp: "str | None" = None,
-    suite: str = SUITE_MLDSA44,
+    key_path: "Path | None" = None,
+    *,
+    secret_key: "bytes | None" = None,
+    created_at: "str | None" = None,
     _spec_raw: "dict | None" = None,
-) -> None:
+) -> str:
     """Compile a show_spec.json into a genesis-verifiable shard.
 
-    Output passes: axm-verify shard <out_path>
+    Returns the derived shard identity ("sh1_" + BLAKE3 of the manifest
+    bytes — spec §9: identity is derived, never stored).
+
+    Output passes: axm-verify shard <out_path> --trusted-key <publisher.pub>
 
     Args:
         spec_path:  Path to show_spec.json on disk. Ignored if _spec_raw is provided.
+        key_path:   Path to the 3904-byte axm-hybrid1 secret key blob
+                    (axm-build keygen). The blob stays outside the repository.
+        secret_key: The key blob itself, for callers that hold it in memory
+                    (e.g. the HTTP server). Takes precedence over key_path.
+        created_at: RFC 3339 UTC timestamp with Z suffix. Defaults to now;
+                    pass a fixed value for reproducible builds.
         _spec_raw:  Pre-parsed spec dict. When provided, spec_path is not read.
-                    Used by the HTTP server to avoid a round-trip through the filesystem.
+                    Used by the HTTP server to avoid a filesystem round-trip.
     """
     if _spec_raw is not None:
         spec_raw = _spec_raw
-        print(f"Show Compiler: spec from caller (HTTP)")
+        print("Show Compiler: spec from caller (HTTP)")
     else:
         print(f"Show Compiler: reading {spec_path}")
         with open(spec_path, "r", encoding="utf-8") as f:
             spec_raw = json.load(f)
 
-    print(f"  Suite: {suite}")
+    key_blob = _load_secret_key(key_path, secret_key)
 
     errors = validate_show_spec(spec_raw)
     if errors:
@@ -234,87 +254,66 @@ def compile_show(
             print(f"  VALIDATION ERROR: {e}")
         raise ValueError(f"Show spec validation failed with {len(errors)} errors")
 
-    print(f"  Validation: PASS")
+    print("  Validation: PASS")
 
-    if timestamp is None:
-        timestamp = (
+    if created_at is None:
+        created_at = (
             datetime.now(timezone.utc)
             .replace(microsecond=0)
             .isoformat()
             .replace("+00:00", "Z")
         )
 
-    # Build key material (same pattern as compile.py)
-    if suite == SUITE_MLDSA44:
-        kp = mldsa44_keygen()
-        sk_raw = kp.secret_key
-        pk_raw = kp.public_key
-        private_key_for_cfg = sk_raw + pk_raw
-    else:
-        nacl_sk = signing_key_from_private_key_bytes(
-            signing_key or _CANONICAL_PUBLISHER_SEED
-        )
-        sk_raw = bytes(nacl_sk)
-        pk_raw = bytes(nacl_sk.verify_key)
-        private_key_for_cfg = sk_raw
+    # Serialize spec as canonical source document. This becomes
+    # content/source.txt in the shard; every claim cites a fragment of it.
+    # Normalize exactly as the kernel will, so evidence uniqueness is
+    # checked against the same bytes the shard seals.
+    source_text = normalize_source_text(
+        json.dumps(spec_raw, indent=2, ensure_ascii=False, sort_keys=True)
+    )
 
-    # Serialize spec as canonical source document
-    # This becomes content/source.txt in the shard
-    # Every claim cites a fragment from this document
-    source_text = json.dumps(spec_raw, indent=2, ensure_ascii=False, sort_keys=True)
+    candidates = _extract_candidates(spec_raw, source_text)
+    if not candidates:
+        raise ValueError("No candidates extracted from show spec")
 
-    work_dir = Path(tempfile.mkdtemp(prefix="axm_show_"))
-    try:
+    print(f"  Candidates: {len(candidates)}")
+
+    show_name = spec_raw.get("config", {}).get("show_name", "Untitled Show")
+    venue_name = spec_raw.get("venue", {}).get("name", "Unknown Venue")
+
+    out_path = Path(out_path)
+
+    with tempfile.TemporaryDirectory(prefix="axm_show_") as tmp:
+        work_dir = Path(tmp)
         source_path = work_dir / "source.txt"
         source_path.write_text(source_text, encoding="utf-8")
 
-        candidates = _extract_candidates(spec_raw, source_text)
-        if not candidates:
-            raise ValueError("No candidates extracted from show spec")
-
-        print(f"  Candidates: {len(candidates)}")
-
         candidates_path = work_dir / "candidates.jsonl"
-        with candidates_path.open("w") as f:
+        with candidates_path.open("w", encoding="utf-8") as f:
             for c in candidates:
                 f.write(json.dumps(c, ensure_ascii=False) + "\n")
-
-        # Build shard title
-        show_name = spec_raw.get("config", {}).get("show_name", "Untitled Show")
-        venue_name = spec_raw.get("venue", {}).get("name", "Unknown Venue")
 
         cfg = CompilerConfig(
             source_path=source_path,
             candidates_path=candidates_path,
             out_dir=out_path,
-            private_key=private_key_for_cfg,
+            private_key=key_blob,
             publisher_id=_PUBLISHER_ID,
             publisher_name=_PUBLISHER_NAME,
             namespace=_NAMESPACE,
-            created_at=timestamp,
-            suite=suite,
+            created_at=created_at,
+            title=show_name,
         )
 
-        ok = compile_generic_shard(cfg)
-        if not ok:
-            raise RuntimeError(
-                "compile_generic_shard returned False (no claims compiled)"
-            )
+        # compile_generic_shard writes the shard AND self-verifies it against
+        # the publisher key; False means the kernel rejected its own output.
+        if not compile_generic_shard(cfg):
+            raise RuntimeError(f"Shard failed kernel self-verification: {out_path}")
 
-    finally:
-        shutil.rmtree(work_dir, ignore_errors=True)
+    manifest_bytes = (out_path / "manifest.json").read_bytes()
+    shard_id = "sh1_" + blake3.blake3(manifest_bytes).hexdigest()
 
-    # Self-verify (hard invariant: never emit a failing shard)
-    result = _verify_shard(
-        out_path, trusted_key_path=out_path / "sig" / "publisher.pub"
-    )
-    if result["status"] != "PASS":
-        raise RuntimeError(
-            f"Show shard failed self-verification: {result['errors']}"
-        )
-
-    # Summary
-    manifest = json.loads((out_path / "manifest.json").read_bytes())
+    manifest = json.loads(manifest_bytes)
     stats = manifest.get("statistics", {})
     merkle = manifest.get("integrity", {}).get("merkle_root", "?")
 
@@ -323,45 +322,51 @@ def compile_show(
     print(f"  Venue:    {venue_name}")
     print(f"  Entities: {stats.get('entities', 0)}")
     print(f"  Claims:   {stats.get('claims', 0)}")
-    print(f"  Suite:    {manifest.get('suite', suite)}")
+    print(f"  Suite:    {manifest.get('suite', '?')}")
     print(f"  Merkle:   {merkle[:32]}...")
+    print(f"  Shard id: {shard_id}")
+
+    return shard_id
 
 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
-@click.command()
-@click.argument("spec", type=click.Path(exists=True, path_type=Path))
-@click.argument("out", type=click.Path(path_type=Path))
+@click.command("compile")
+@click.argument("spec", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("out", type=click.Path(file_okay=False, path_type=Path))
 @click.option(
-    "--suite", "suite_name",
-    type=click.Choice([SUITE_MLDSA44, SUITE_ED25519]),
-    default=SUITE_MLDSA44, show_default=True,
-    help="Cryptographic suite.",
+    "--key", "key_path", required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="3904-byte axm-hybrid1 secret key blob (axm-build keygen). "
+         "No default: a shard signed with a published key proves "
+         "integrity, never authenticity.",
 )
-@click.option("--legacy", is_flag=True, default=False,
-              help=f"Alias for --suite {SUITE_ED25519}.")
-@click.option("--gold", is_flag=True,
-              help="Use canonical test key + timestamp (reproducible gold shards, ed25519).")
-def main(spec: Path, out: Path, suite_name: str, legacy: bool, gold: bool) -> None:
+@click.option(
+    "--created-at", "created_at", default=None,
+    help="RFC 3339 UTC timestamp with Z suffix (default: now). "
+         "Pass a fixed value for reproducible builds.",
+)
+def main(spec: Path, out: Path, key_path: Path, created_at: "str | None") -> None:
     """Compile a show_spec.json into a Genesis shard.
 
-    Output passes axm-verify shard with a clean PASS.
+    Output passes `axm-verify shard OUT --trusted-key <publisher.pub>`
+    with a clean PASS. Prints the derived sh1_ shard identity.
     """
-    effective_suite = (
-        SUITE_ED25519 if (legacy or suite_name == SUITE_ED25519) else SUITE_MLDSA44
-    )
     try:
-        compile_show(
-            spec, out,
-            signing_key=_CANONICAL_PUBLISHER_SEED if gold else None,
-            timestamp=GOLD_TIMESTAMP if gold else None,
-            suite=effective_suite,
-        )
+        compile_show(spec, out, key_path, created_at=created_at)
     except Exception as e:
         print(f"FATAL: {e}")
         raise SystemExit(1)
+
+
+@click.group("show")
+def show_group() -> None:
+    """Drone show spoke: show_spec.json in, signed AXM shard out."""
+
+
+show_group.add_command(main)
 
 
 if __name__ == "__main__":
