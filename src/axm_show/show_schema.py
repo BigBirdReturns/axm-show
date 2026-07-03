@@ -57,11 +57,24 @@ Example show_spec.json:
       "tier_2_optical_only": "loiter_or_rth",
       "tier_3_full_disconnect": "land_in_place"
     }
-  }
+  },
+  "fleet": [
+    {
+      "asset_id": "node-0042",
+      "node_record_shard_id": "sh1_<64 hex chars>",
+      "role": "primary"
+    }
+  ]
 }
+
+The `fleet` section is optional and cites, per drone, the axm-fleet node
+record shard that proves what image/firmware/models that asset was running
+at show time (`axm-fleet record ...` — see the axm-fleet repo). Each entry
+is a Tier-0 claim: a content address, not a live lookup.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -70,6 +83,9 @@ VALID_AIRSPACE_CLASSES = {"A", "B", "C", "D", "E", "G"}
 VALID_FORMATION_TYPES = {"grid", "circle", "wave", "sphere", "text", "custom"}
 VALID_FALLBACK_BEHAVIORS = {"return_home", "hold_position", "land_in_place", "safe_zone"}
 VALID_DATA_SOURCES = {"aloft", "airhub", "manual", "cached"}
+
+# sh1_ + 64 lowercase hex chars: BLAKE3 of an axm-fleet node record's manifest.
+SHARD_ID_RE = re.compile(r"^sh1_[0-9a-f]{64}$")
 
 # Comm degradation tier actions
 VALID_TIER_ACTIONS = {
@@ -125,12 +141,28 @@ class ShowSafety:
 
 
 @dataclass(frozen=True)
+class FleetAsset:
+    """A physical drone flying this show, identified by its axm-fleet node
+    record — the shard produced by `axm-fleet record` for that asset.
+
+    This is the only place a show shard reaches outside its own compiler:
+    a content address (sh1_ id), never a live lookup. Verifying it requires
+    the referenced axm-fleet shard and its own trusted key, out of band —
+    same discipline as everything else in this spoke.
+    """
+    asset_id: str
+    node_record_shard_id: str
+    role: str = ""
+
+
+@dataclass(frozen=True)
 class ShowSpec:
     """Complete show specification. Input to the show compiler."""
     schema_version: str
     venue: ShowVenue
     config: ShowConfig
     safety: ShowSafety
+    fleet: "tuple[FleetAsset, ...]" = field(default_factory=tuple)
 
 
 def validate_show_spec(raw: dict[str, Any]) -> list[str]:
@@ -197,6 +229,24 @@ def validate_show_spec(raw: dict[str, Any]) -> list[str]:
         if tier_action not in VALID_TIER_ACTIONS:
             errors.append(f"Invalid comm tier action {tier_key}: {tier_action}")
 
+    # Fleet validation (optional — a show_spec need not name its drones)
+    fleet = raw.get("fleet", [])
+    seen_asset_ids: set[str] = set()
+    for i, entry in enumerate(fleet):
+        asset_id = entry.get("asset_id", "")
+        shard_id = entry.get("node_record_shard_id", "")
+        if not asset_id:
+            errors.append(f"fleet[{i}]: missing asset_id")
+        elif asset_id in seen_asset_ids:
+            errors.append(f"fleet[{i}]: duplicate asset_id {asset_id}")
+        else:
+            seen_asset_ids.add(asset_id)
+        if not SHARD_ID_RE.match(shard_id):
+            errors.append(
+                f"fleet[{i}]: node_record_shard_id is not a valid sh1_ shard "
+                f"id (got {shard_id!r}) — compile it with `axm-fleet record`"
+            )
+
     return errors
 
 
@@ -205,9 +255,18 @@ def parse_show_spec(raw: dict[str, Any]) -> ShowSpec:
     v = raw["venue"]
     c = raw["config"]
     s = raw["safety"]
+    fleet = tuple(
+        FleetAsset(
+            asset_id=entry["asset_id"],
+            node_record_shard_id=entry["node_record_shard_id"],
+            role=entry.get("role", ""),
+        )
+        for entry in raw.get("fleet", [])
+    )
 
     return ShowSpec(
         schema_version=raw["schema_version"],
+        fleet=fleet,
         venue=ShowVenue(
             name=v["name"],
             latitude=v["latitude"],

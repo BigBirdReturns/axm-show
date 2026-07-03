@@ -131,7 +131,7 @@ def test_altitude_ceiling_enforcement():
 
 
 def test_candidate_count(tmp_path, keypair):
-    """KEMT spec produces expected number of claims (venue + config + safety)."""
+    """KEMT spec produces expected number of claims (venue + config + safety + fleet)."""
     from axm_show.show_compile import compile_show
 
     key_path, _ = keypair
@@ -139,9 +139,55 @@ def test_candidate_count(tmp_path, keypair):
     compile_show(KEMT_SPEC, out, key_path)
 
     manifest = json.loads((out / "manifest.json").read_text())
-    # KEMT spec has ~10 venue + ~8 config + ~11 safety = ~29 claims
+    # KEMT spec has ~10 venue + ~8 config + ~11 safety + 2 fleet = ~31 claims
     assert manifest["statistics"]["claims"] >= 20, \
         f"Expected >=20 claims, got {manifest['statistics']['claims']}"
+
+
+def test_fleet_reference_validates():
+    """The KEMT spec's fleet section (axm-fleet node record shard ids) is valid."""
+    from axm_show.show_schema import validate_show_spec
+    raw = json.loads(KEMT_SPEC.read_text())
+    assert len(raw["fleet"]) == 2
+    errors = validate_show_spec(raw)
+    assert errors == [], f"Validation errors: {errors}"
+
+
+def test_fleet_bad_shard_id_rejected():
+    """A malformed node_record_shard_id must fail validation, not be silently
+    dropped — the show shard would otherwise cite a reference nothing can
+    verify."""
+    from axm_show.show_schema import validate_show_spec
+    raw = json.loads(KEMT_SPEC.read_text())
+    raw["fleet"][0]["node_record_shard_id"] = "not-a-shard-id"
+    errors = validate_show_spec(raw)
+    assert any("shard id" in e.lower() for e in errors), errors
+
+
+def test_fleet_duplicate_asset_id_rejected():
+    """Two fleet entries cannot claim the same physical asset_id."""
+    from axm_show.show_schema import validate_show_spec
+    raw = json.loads(KEMT_SPEC.read_text())
+    raw["fleet"][1]["asset_id"] = raw["fleet"][0]["asset_id"]
+    errors = validate_show_spec(raw)
+    assert any("duplicate asset_id" in e for e in errors), errors
+
+
+def test_fleet_claims_are_tier_0(tmp_path, keypair):
+    """Fleet claims land in the manifest as Tier-0 (facts, not choices) —
+    same discipline as the venue's regulatory claims."""
+    from axm_show.show_compile import _extract_candidates
+    from axm_build.common import normalize_source_text
+
+    raw = json.loads(KEMT_SPEC.read_text())
+    source_text = normalize_source_text(
+        json.dumps(raw, indent=2, ensure_ascii=False, sort_keys=True)
+    )
+    candidates = _extract_candidates(raw, source_text)
+    fleet_candidates = [c for c in candidates if c["subject"].startswith("show/fleet/")]
+    assert len(fleet_candidates) == 2
+    assert all(c["tier"] == 0 for c in fleet_candidates)
+    assert all(c["object_type"] == "reference:shard_id" for c in fleet_candidates)
 
 
 def test_reproducible_build(tmp_path, keypair):

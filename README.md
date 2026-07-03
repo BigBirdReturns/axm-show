@@ -63,6 +63,35 @@ axm-show-compile examples/kemt_show_spec.json show_shard/ \
     --key /secure/axm-keys/publisher.key --created-at 2026-07-02T00:00:00Z
 ```
 
+## Fleet cross-reference
+
+A show's mission authorization is one-shot; the drones flying it have their
+own lifecycle, sealed separately by
+[`axm-fleet`](https://github.com/BigBirdReturns/axm-fleet) as a chain of
+node record shards (`deploy` → `patch` → ... via `supersedes`). The
+optional `fleet` section in `show_spec.json` cites, per asset, the
+axm-fleet node record shard current at show time:
+
+```json
+"fleet": [
+  {"asset_id": "node-0042", "node_record_shard_id": "sh1_<64 hex>", "role": "lead"}
+]
+```
+
+This is a content address, not a live lookup or a code dependency — the
+show spoke never imports axm-fleet, signs on its behalf, or resolves the
+reference itself. Each cited shard is independently verifiable with its
+own trusted key, out of band, exactly like the show shard itself. A
+`node_record_shard_id` that isn't a well-formed `sh1_` + 64-hex-char id
+fails `validate_show_spec`; the compiler will not seal a claim it cannot
+name. Compile the referenced record first with `axm-fleet record`.
+
+`axm-show` seals *mission authorization* (what may fly, under which
+ceiling — one-shot); `axm-fleet` seals *fleet lifecycle* (what is running,
+and how it got there — a supersedes chain over time); `axm-sfn` seals
+*hardware custody* (what the machine attested it did, TPM-bound). Same
+kernel, three record types — cross-referenced by shard id, never merged.
+
 ## Repository layout
 
 ```
@@ -85,6 +114,7 @@ axm-show/
 | Tier | Source | Claims |
 |------|--------|--------|
 | 0 | `venue` | Regulatory facts — airspace class, LAANC ceiling, geofence. Immutable. |
+| 0 | `fleet` | Which physically-attested drones flew (axm-fleet node record shard ids). Optional. |
 | 1 | `config` | Operational parameters — drone count, formation, altitude, duration. |
 | 2 | `safety` | Contingency mappings — fallback behavior per failure mode. |
 

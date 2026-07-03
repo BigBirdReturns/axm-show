@@ -37,5 +37,17 @@
       "tier_2_optical_only": "loiter_or_rth",
       "tier_3_full_disconnect": "land_in_place"
     }
-  }
+  },
+  "fleet": [
+    {
+      "asset_id": "node-0042",
+      "node_record_shard_id": "sh1_6c009cbdd6402e08d28cdaacfd2f270b46663016c307042556de2b2a588eba15",
+      "role": "lead"
+    },
+    {
+      "asset_id": "node-0043",
+      "node_record_shard_id": "sh1_eacde691399c6310a6489bc8db08a7d19149706bacde325d842240583c45fa3d",
+      "role": "spare"
+    }
+  ]
 }

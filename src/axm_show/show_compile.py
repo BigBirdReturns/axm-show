@@ -186,6 +186,17 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
         _add("show/safety", tier_key, tier_action, "literal:string", 2,
              f'"{tier_key}": "{tier_action}"')
 
+    # --- Tier 0: Fleet (which physically-attested drones flew this show) ---
+    # Each entry cites an axm-fleet node record shard by content address.
+    # A fact about which asset flew, not a choice the show makes — same
+    # tier as the venue's regulatory facts.
+    for entry in spec_raw.get("fleet", []):
+        asset_id = entry["asset_id"]
+        shard_id = entry["node_record_shard_id"]
+        _add(f"show/fleet/{asset_id}", "node_record_shard_id", shard_id,
+             "reference:shard_id", 0,
+             f'"node_record_shard_id": "{shard_id}"')
+
     return candidates
 
 
