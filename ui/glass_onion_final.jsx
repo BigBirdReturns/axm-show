@@ -377,7 +377,7 @@ function CompileMode({spec,onComplete}){
   const _compileLive=useCallback(async()=>{
     setState("running");
     addLog("Show Compiler v1.0.0  ·  axm-show-server");
-    addLog("Suite: axm-blake3-mldsa44 (ML-DSA-44, post-quantum)"); await delay(100);
+    addLog("Suite: axm-hybrid1 (Ed25519 ‖ ML-DSA-44, post-quantum)"); await delay(100);
     addLog(`POSTing to ${BACKEND_URL}/show/compile…`);
     try{
       const resp=await fetch(`${BACKEND_URL}/show/compile`,{
@@ -397,16 +397,16 @@ function CompileMode({spec,onComplete}){
       addLog(`  content/source.txt — ${data.source_text.length} bytes`);
       addLog(`Building entity graph…`);
       addLog(`  ${stats.entities} entities`); await delay(80);
-      addLog("Writing Parquet tables…");
-      for(const t of["graph/entities.parquet","graph/claims.parquet","graph/provenance.parquet","evidence/spans.parquet"]){
+      addLog("Writing canonical JSONL tables…");
+      for(const t of["graph/entities.jsonl","graph/claims.jsonl","graph/provenance.jsonl","evidence/spans.jsonl"]){
         addLog(`  ${t}`); await delay(30);
       }
       addLog("Computing BLAKE3 Merkle tree…  ← real blake3, not SHA-256");
       addLog(`  Root: ${data.merkle_root.slice(0,32)}…`); await delay(100);
-      addLog("Signing manifest with ML-DSA-44 (FIPS 204)…");
-      addLog("  Public key: 1312 bytes  Signature: 2420 bytes"); await delay(150);
+      addLog("Signing manifest with axm-hybrid1 (Ed25519 + FIPS 204 ML-DSA-44)…");
+      addLog("  Public key: 1344 bytes  Signature: 2484 bytes"); await delay(150);
       addLog("Self-verification gate (axm-verify shard)…");
-      for(const[req,note] of [["REQ 1","Manifest integrity"],["REQ 2","Content identity"],["REQ 3","Lineage events"],["REQ 4","Proof bundle"],["REQ 5","Non-selective recording"]]){
+      for(const[req,note] of [["REQ 1","Manifest integrity"],["REQ 2","Content identity"],["REQ 3","Lineage events"],["REQ 4","Proof bundle"]]){
         addLog(`  ${req}: ${note} …………… PASS`,"pass"); await delay(60);
       }
       addLog(""); addLog("PASS: Show Shard compiled  ← genesis kernel","pass");
@@ -435,7 +435,7 @@ function CompileMode({spec,onComplete}){
     const claims=extractClaims(spec);
     const src=JSON.stringify(spec,null,2);
     addLog("Show Compiler v1.0.0");
-    addLog("Suite: axm-blake3-mldsa44 (ML-DSA-44, post-quantum)"); await delay(200);
+    addLog("Suite: axm-hybrid1 (Ed25519 ‖ ML-DSA-44, post-quantum)"); await delay(200);
     addLog(`Reading: ${spec.config.show_name}`); await delay(150);
     addLog("Validating show spec…");
     if(spec.config.max_altitude_ft>spec.venue.laanc_ceiling_ft){
@@ -452,27 +452,27 @@ function CompileMode({spec,onComplete}){
     const entities=[...new Set(claims.map(c=>c.subject))];
     addLog(`Building entity graph…`);
     addLog(`  ${entities.length} entities: ${entities.join(", ")}`); await delay(200);
-    addLog("Writing Parquet tables…");
-    for(const t of["graph/entities.parquet","graph/claims.parquet","graph/provenance.parquet","evidence/spans.parquet"]){
+    addLog("Writing canonical JSONL tables…");
+    for(const t of["graph/entities.jsonl","graph/claims.jsonl","graph/provenance.jsonl","evidence/spans.jsonl"]){
       addLog(`  ${t}`); await delay(60);
     }
     addLog("Computing BLAKE3 Merkle tree…  ← SHA-256 stand-in (demo mode)");
     const merkle=await computeMerkle([src,JSON.stringify(claims),JSON.stringify(entities)].sort());
     addLog(`  Root: ${merkle.slice(0,32)}…`); await delay(250);
-    addLog("Signing manifest with ML-DSA-44 (FIPS 204)…  ← simulated");
-    addLog("  Public key: 1312 bytes (simulated)"); await delay(100);
-    addLog("  Signature: 2420 bytes (simulated)"); await delay(300);
+    addLog("Signing manifest with axm-hybrid1 (Ed25519 + ML-DSA-44)…  ← simulated");
+    addLog("  Public key: 1344 bytes (simulated)"); await delay(100);
+    addLog("  Signature: 2484 bytes (simulated)"); await delay(300);
     addLog("Self-verification gate…");
-    for(const[req,note] of [["REQ 1","Manifest integrity"],["REQ 2","Content identity"],["REQ 3","Lineage events"],["REQ 4","Proof bundle"],["REQ 5","Non-selective recording"]]){
+    for(const[req,note] of [["REQ 1","Manifest integrity"],["REQ 2","Content identity"],["REQ 3","Lineage events"],["REQ 4","Proof bundle"]]){
       addLog(`  ${req}: ${note} …………… PASS`,"pass"); await delay(120);
     }
-    const shardId=`shard_blake3_${merkle.slice(0,48)}`;
+    const shardId=`sh1_${merkle.slice(0,48)}`;
     const ts=new Date().toISOString().replace(/\.\d{3}Z/,"Z");
     addLog(""); addLog("PASS: Show Shard compiled  ← demo mode (SHA-256)","pass");
     addLog(`  Show:     ${spec.config.show_name}`);
     addLog(`  Venue:    ${spec.venue.name}`);
     addLog(`  Entities: ${entities.length}  Claims: ${claims.length}`);
-    addLog(`  Suite:    axm-blake3-mldsa44`);
+    addLog(`  Suite:    axm-hybrid1`);
     addLog(`  Merkle:   ${merkle.slice(0,32)}…`);
     addLog(`  Shard:    ${shardId.slice(0,44)}…`);
     const res={status:"PASS",shardId,merkleRoot:merkle,timestamp:ts,claims,spec,sourceText:src,entities:entities.length,t0,t1,t2};
@@ -571,12 +571,12 @@ function InspectMode({shard}){
     await delay(150); add("Lineage events","pass","No superseded shards (initial shard)");
     await delay(150); add("Proof bundle",tampered?"fail":"pass",tampered?"Signature invalid (tampered data)":"sig/manifest.sig + sig/publisher.pub present");
     const orphans=claims.filter(c=>!c.evidence||!c.evidence.trim()).length;
-    await delay(200); add("Non-selective recording",orphans===0?"pass":"warn",orphans===0?"All claims have evidence spans":`${orphans} claims lack evidence`);
+    await delay(200); add("Evidence completeness (advisory)",orphans===0?"pass":"warn",orphans===0?"All claims have evidence spans":`${orphans} claims lack evidence`);
     const allPass=steps.every(s=>s.s==="pass");
     setVr({status:allPass?"PASS":"FAIL",steps}); setVifying(false);
   },[claims,merkleRoot,sourceText,subjects,shardId,tampered,shard]);
 
-  const manifest=shard.manifest||{spec_version:"1.0.0",shard_id:shardId,suite:"axm-blake3-mldsa44",publisher:{id:"@axm_show",name:"AXM Show Compiler",created_at:timestamp},metadata:{namespace:"embodied/show",title:`${spec.config.show_name} — ${spec.venue.name}`},integrity:{algorithm:shard._live?"blake3":"sha256-demo",merkle_root:merkleRoot},sources:[{path:"content/source.txt",hash:shard._live?merkleRoot:"(demo — not a real content hash)"}],statistics:{claims:claims.length,entities:subjects.length},extensions:["ext/temporal@1"]};
+  const manifest=shard.manifest||{spec_version:"1.0.0",suite:"axm-hybrid1",metadata:{namespace:"embodied/show",title:`${spec.config.show_name} — ${spec.venue.name}`,created_at:timestamp},publisher:{id:"@axm_show",name:"AXM Show Compiler"},integrity:{algorithm:shard._live?"blake3":"sha256-demo",merkle_root:merkleRoot},sources:[{path:"content/source.txt",hash:shard._live?merkleRoot:"(demo — not a real content hash)"}],statistics:{claims:claims.length,entities:subjects.length}};
 
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
@@ -590,7 +590,7 @@ function InspectMode({shard}){
           <button onClick={()=>{setTampered(!tampered);setVr(null);}} style={{padding:"2px 8px",borderRadius:3,background:tampered?"#cf5c5c22":"#1a1a2e",border:`1px solid ${tampered?"#cf5c5c55":"#2a2a4e"}`,color:tampered?"#cf5c5c":"#3a4a6a",cursor:"pointer",fontSize:8,fontFamily:"inherit",letterSpacing:1,transition:"all 0.2s"}}>{tampered?"⚠ TAMPERED":"TAMPER TEST"}</button>
         </div>
         <div style={{display:"flex",gap:12}}>
-          {[[claims.length,"claims"],[subjects.length,"entities"],["axm-blake3-mldsa44","suite"]].map(([v,k])=>(
+          {[[claims.length,"claims"],[subjects.length,"entities"],["axm-hybrid1","suite"]].map(([v,k])=>(
             <div key={k} style={{fontSize:9}}><span style={{color:"#3a4a6a"}}>{k}: </span><span style={{color:"#8ab4f8"}}>{v}</span></div>
           ))}
         </div>
@@ -734,7 +734,7 @@ function InspectMode({shard}){
             <pre style={{padding:14,background:"#0a0a14",borderRadius:5,border:"1px solid #1a1a2e",color:"#8a9ab0",fontSize:10,lineHeight:1.7,fontFamily:"'DM Mono',monospace",overflow:"auto",margin:0}}>{JSON.stringify(manifest,null,2)}</pre>
             <div style={{marginTop:14}}>
               <div style={{fontSize:9,color:"#3a4a6a",letterSpacing:1.5,marginBottom:8}}>SHARD LAYOUT</div>
-              <pre style={{padding:12,background:"#0a0a14",borderRadius:5,border:"1px solid #1a1a2e",color:"#6a7a8a",fontSize:10,lineHeight:1.7,fontFamily:"'DM Mono',monospace",margin:0}}>{`show_shard/\n├── manifest.json\n├── sig/\n│   ├── manifest.sig        (2420 bytes — ML-DSA-44)\n│   └── publisher.pub       (1312 bytes)\n├── content/\n│   └── source.txt          (${sourceText.length} bytes)\n├── graph/\n│   ├── entities.parquet    (${subjects.length} entities)\n│   ├── claims.parquet      (${claims.length} claims)\n│   └── provenance.parquet\n└── evidence/\n    └── spans.parquet`}</pre>
+              <pre style={{padding:12,background:"#0a0a14",borderRadius:5,border:"1px solid #1a1a2e",color:"#6a7a8a",fontSize:10,lineHeight:1.7,fontFamily:"'DM Mono',monospace",margin:0}}>{`show_shard/\n├── manifest.json\n├── sig/\n│   ├── manifest.sig        (2484 bytes — axm-hybrid1)\n│   └── publisher.pub       (1344 bytes)\n├── content/\n│   └── source.txt          (${sourceText.length} bytes)\n├── graph/\n│   ├── entities.jsonl      (${subjects.length} entities)\n│   ├── claims.jsonl        (${claims.length} claims)\n│   └── provenance.jsonl\n└── evidence/\n    └── spans.jsonl`}</pre>
             </div>
           </div>
         )}
@@ -881,7 +881,7 @@ export default function GlassOnionApp(){
 
         {/* Footer */}
         <div style={{padding:"7px 28px",borderTop:"1px solid #1a1410",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
-          <span style={{fontSize:9,color:"#2a2420"}}>axm-genesis v1.2.0 · axm-show v1.0.0{DEMO_MODE?" · demo mode":""}</span>
+          <span style={{fontSize:9,color:"#2a2420"}}>axm-genesis 1.0.0rc1 · axm-show v1.0.0{DEMO_MODE?" · demo mode":""}</span>
           <span style={{fontFamily:"'Spectral',serif",fontSize:10,color:"#2a2420",fontStyle:"italic"}}>rings route intent — state flows once</span>
         </div>
       </div>

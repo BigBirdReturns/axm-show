@@ -9,14 +9,20 @@ description = "Drone show spoke for AXM — compiles show_spec.json into genesis
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
+# axm-genesis is not yet on PyPI: install the pinned commit from the README /
+# CI (docs/ADOPTING.md §2); this range is what a post-1.0.0 release resolves.
+# The mldsa-compat extra pulls a pure-Python ML-DSA-44 backend for signing.
 dependencies = [
-  "axm-genesis>=1.2.0",
+  "axm-genesis[mldsa-compat]>=1.0.0rc1,<2",
   "click>=8.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=7.0",
+]
+server = [
+  "flask>=3.0",
 ]
 
 [project.scripts]

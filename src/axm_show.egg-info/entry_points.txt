@@ -1,0 +1,2 @@
+[console_scripts]
+axm-show-compile = axm_show.show_compile:main

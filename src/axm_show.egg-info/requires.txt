@@ -1,0 +1,8 @@
+axm-genesis[mldsa-compat]<2,>=1.0.0rc1
+click>=8.0.0
+
+[dev]
+pytest>=7.0
+
+[server]
+flask>=3.0
