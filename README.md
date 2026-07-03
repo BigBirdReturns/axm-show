@@ -24,7 +24,7 @@ No fork from the kernel. `compile_generic_shard` is the only path to a verifiabl
 # The kernel. Until axm-genesis is on PyPI, pin the commit you build against
 # (axm-genesis docs/ADOPTING.md §2); after the v1.0.0 release use the range
 # axm-genesis[mldsa-compat]>=1.0.0,<2.
-pip install 'axm-genesis[mldsa-compat] @ git+https://github.com/BigBirdReturns/axm-genesis@bdeb2ba07f83ff3fae07e5beb335034f4853a73f'
+pip install 'axm-genesis[mldsa-compat] @ git+https://github.com/BigBirdReturns/axm-genesis@fffe7cf0f1c78c8c4bea5f303099db80f7c53ba3'
 pip install -e .          # this spoke
 ```
 

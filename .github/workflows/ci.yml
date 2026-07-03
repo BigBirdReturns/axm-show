@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BigBirdReturns/axm-genesis
-          ref: bdeb2ba07f83ff3fae07e5beb335034f4853a73f
+          ref: fffe7cf0f1c78c8c4bea5f303099db80f7c53ba3
           path: axm-genesis
 
       - uses: actions/setup-python@v5
@@ -45,3 +45,6 @@ jobs:
             --key ci-keys/publisher.key --created-at 2026-01-01T00:00:00Z
           axm-verify shard ci-shard --trusted-key ci-keys/publisher.pub
           echo "exit: $?  (0 = PASS — the kernel accepts the spoke's output)"
+
+      - name: Drift check (kernel-boundary lint, sourced from genesis)
+        run: bash axm-genesis/tools/drift-check.sh axm-show
