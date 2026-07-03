@@ -90,6 +90,12 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
                 "evidence": evidence,
             })
 
+    def _json_bool(value: bool) -> str:
+        # Booleans render as JSON literals (true/false) both in the object
+        # value and in the evidence fragment, matching the sorted-key JSON
+        # source the kernel seals.
+        return "true" if value else "false"
+
     # --- Tier 0: Venue / Regulatory (facts, not choices) ---
 
     # Each evidence string is a unique JSON fragment from the source
@@ -100,20 +106,20 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
          f'"airspace_class": "{venue["airspace_class"]}"')
 
     _add("show/venue", "max_altitude_agl_ft", str(venue["max_altitude_agl_ft"]),
-         "literal:decimal", 0,
+         "literal:integer", 0,
          f'"max_altitude_agl_ft": {venue["max_altitude_agl_ft"]}')
 
-    _add("show/venue", "laanc_available", str(venue["laanc_available"]).lower(),
-         "literal:string", 0,
-         f'"laanc_available": {str(venue["laanc_available"]).lower()}')
+    _add("show/venue", "laanc_available", _json_bool(venue["laanc_available"]),
+         "literal:boolean", 0,
+         f'"laanc_available": {_json_bool(venue["laanc_available"])}')
 
     _add("show/venue", "laanc_ceiling_ft", str(venue.get("laanc_ceiling_ft", "")),
-         "literal:decimal", 0,
+         "literal:integer", 0,
          f'"laanc_ceiling_ft": {venue.get("laanc_ceiling_ft", 0)}')
 
     _add("show/venue", "authorization_required",
-         str(venue["authorization_required"]).lower(), "literal:string", 0,
-         f'"authorization_required": {str(venue["authorization_required"]).lower()}')
+         _json_bool(venue["authorization_required"]), "literal:boolean", 0,
+         f'"authorization_required": {_json_bool(venue["authorization_required"])}')
 
     _add("show/venue", "latitude", str(venue["latitude"]), "literal:decimal", 0,
          f'"latitude": {venue["latitude"]}')
@@ -136,7 +142,7 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
          f'"show_name": "{config["show_name"]}"')
 
     _add("show/config", "drone_count", str(config["drone_count"]),
-         "literal:decimal", 1,
+         "literal:integer", 1,
          f'"drone_count": {config["drone_count"]}')
 
     _add("show/config", "formation_type", config["formation_type"],
@@ -144,11 +150,11 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
          f'"formation_type": "{config["formation_type"]}"')
 
     _add("show/config", "max_altitude_ft", str(config["max_altitude_ft"]),
-         "literal:decimal", 1,
+         "literal:integer", 1,
          f'"max_altitude_ft": {config["max_altitude_ft"]}')
 
     _add("show/config", "duration_seconds", str(config["duration_seconds"]),
-         "literal:decimal", 1,
+         "literal:integer", 1,
          f'"duration_seconds": {config["duration_seconds"]}')
 
     if config.get("geofence_radius_m"):
