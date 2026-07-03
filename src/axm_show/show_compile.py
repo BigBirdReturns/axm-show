@@ -14,11 +14,13 @@ This follows the exact same pattern as compile.py and bounds.py:
   4. Self-verify before emitting
 
 Usage:
-    axm-show-compile <show_spec.json> <out_dir>
-    axm-show-compile show_spec.json show_shard/ --suite ed25519
-    axm-show-compile show_spec.json show_shard/ --gold
+    axm-show-compile <show_spec.json> <out_dir> --key publisher.key
+    axm-show-compile show_spec.json show_shard/ --key publisher.key \
+        --created-at 2026-01-01T00:00:00Z          # reproducible gold shard
+    axm-show-compile show_spec.json show_shard/ --key publisher.key \
+        --supersedes sh1_<prior-id>                # reissue authorization
 
-The output shard passes: axm-verify shard <out_dir>
+The output shard passes: axm-verify shard <out_dir> --trusted-key publisher.pub
 
 Dependency chain:
     planner UI (or CLI)        ->  show_spec.json
@@ -39,23 +41,17 @@ import click
 
 # Genesis compiler: the only path to a verifiable shard
 from axm_build.compiler_generic import CompilerConfig, compile_generic_shard
-from axm_build.sign import (
-    SUITE_ED25519,
-    SUITE_MLDSA44,
-    mldsa44_keygen,
-    signing_key_from_private_key_bytes,
-)
+from axm_build.sign import HYBRID1_SK_LEN
 from axm_verify.logic import verify_shard as _verify_shard
 
 # Show schema: validation and parsing
 from axm_show.show_schema import validate_show_spec, parse_show_spec
 
-# Canonical demo key (Ed25519, matches governance/trust_store.json)
-_CANONICAL_PUBLISHER_SEED = bytes.fromhex(
-    "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
-)
-GOLD_TIMESTAMP = "2026-01-01T00:00:00Z"
-
+# There is deliberately NO default signing key. A real publisher identity
+# comes from `axm-build keygen` (a 3904-byte axm-hybrid1 secret blob) and is
+# passed in explicitly; a signature under a published key proves integrity,
+# never authenticity (see axm-genesis docs/ADOPTING.md §3). For a reproducible
+# "gold" shard, supply the same key file plus a fixed --created-at.
 _NAMESPACE = "embodied/show"
 _PUBLISHER_ID = "@axm_show"
 _PUBLISHER_NAME = "AXM Show Compiler"
@@ -94,6 +90,12 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
                 "evidence": evidence,
             })
 
+    def _json_bool(value: bool) -> str:
+        # Booleans render as JSON literals (true/false) both in the object
+        # value and in the evidence fragment, matching the sorted-key JSON
+        # source the kernel seals.
+        return "true" if value else "false"
+
     # --- Tier 0: Venue / Regulatory (facts, not choices) ---
 
     # Each evidence string is a unique JSON fragment from the source
@@ -104,20 +106,20 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
          f'"airspace_class": "{venue["airspace_class"]}"')
 
     _add("show/venue", "max_altitude_agl_ft", str(venue["max_altitude_agl_ft"]),
-         "literal:decimal", 0,
+         "literal:integer", 0,
          f'"max_altitude_agl_ft": {venue["max_altitude_agl_ft"]}')
 
-    _add("show/venue", "laanc_available", str(venue["laanc_available"]).lower(),
-         "literal:string", 0,
-         f'"laanc_available": {str(venue["laanc_available"]).lower()}')
+    _add("show/venue", "laanc_available", _json_bool(venue["laanc_available"]),
+         "literal:boolean", 0,
+         f'"laanc_available": {_json_bool(venue["laanc_available"])}')
 
     _add("show/venue", "laanc_ceiling_ft", str(venue.get("laanc_ceiling_ft", "")),
-         "literal:decimal", 0,
+         "literal:integer", 0,
          f'"laanc_ceiling_ft": {venue.get("laanc_ceiling_ft", 0)}')
 
     _add("show/venue", "authorization_required",
-         str(venue["authorization_required"]).lower(), "literal:string", 0,
-         f'"authorization_required": {str(venue["authorization_required"]).lower()}')
+         _json_bool(venue["authorization_required"]), "literal:boolean", 0,
+         f'"authorization_required": {_json_bool(venue["authorization_required"])}')
 
     _add("show/venue", "latitude", str(venue["latitude"]), "literal:decimal", 0,
          f'"latitude": {venue["latitude"]}')
@@ -140,7 +142,7 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
          f'"show_name": "{config["show_name"]}"')
 
     _add("show/config", "drone_count", str(config["drone_count"]),
-         "literal:decimal", 1,
+         "literal:integer", 1,
          f'"drone_count": {config["drone_count"]}')
 
     _add("show/config", "formation_type", config["formation_type"],
@@ -148,11 +150,11 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
          f'"formation_type": "{config["formation_type"]}"')
 
     _add("show/config", "max_altitude_ft", str(config["max_altitude_ft"]),
-         "literal:decimal", 1,
+         "literal:integer", 1,
          f'"max_altitude_ft": {config["max_altitude_ft"]}')
 
     _add("show/config", "duration_seconds", str(config["duration_seconds"]),
-         "literal:decimal", 1,
+         "literal:integer", 1,
          f'"duration_seconds": {config["duration_seconds"]}')
 
     if config.get("geofence_radius_m"):
@@ -204,9 +206,9 @@ def _extract_candidates(spec_raw: dict, source_text: str) -> list[dict]:
 def compile_show(
     spec_path: "Path | None",
     out_path: Path,
-    signing_key: "bytes | None" = None,
+    signing_key: bytes,
     timestamp: "str | None" = None,
-    suite: str = SUITE_MLDSA44,
+    supersedes: "tuple[str, ...]" = (),
     _spec_raw: "dict | None" = None,
 ) -> None:
     """Compile a show_spec.json into a genesis-verifiable shard.
@@ -214,10 +216,20 @@ def compile_show(
     Output passes: axm-verify shard <out_path>
 
     Args:
-        spec_path:  Path to show_spec.json on disk. Ignored if _spec_raw is provided.
-        _spec_raw:  Pre-parsed spec dict. When provided, spec_path is not read.
-                    Used by the HTTP server to avoid a round-trip through the filesystem.
+        spec_path:   Path to show_spec.json on disk. Ignored if _spec_raw is provided.
+        signing_key: 3904-byte axm-hybrid1 secret key blob (from `axm-build keygen`).
+                     No default — the spoke never mints or embeds a signing key.
+        supersedes:  Derived sh1_ id(s) of a prior authorization this one replaces;
+                     the kernel seals manifest.supersedes + ext/lineage@1.
+        _spec_raw:   Pre-parsed spec dict. When provided, spec_path is not read.
+                     Used by the HTTP server to avoid a round-trip through the filesystem.
     """
+    if len(signing_key) != HYBRID1_SK_LEN:
+        raise ValueError(
+            f"signing_key must be a {HYBRID1_SK_LEN}-byte axm-hybrid1 secret blob, "
+            f"got {len(signing_key)} bytes (generate one with `axm-build keygen`)"
+        )
+
     if _spec_raw is not None:
         spec_raw = _spec_raw
         print(f"Show Compiler: spec from caller (HTTP)")
@@ -225,8 +237,6 @@ def compile_show(
         print(f"Show Compiler: reading {spec_path}")
         with open(spec_path, "r", encoding="utf-8") as f:
             spec_raw = json.load(f)
-
-    print(f"  Suite: {suite}")
 
     errors = validate_show_spec(spec_raw)
     if errors:
@@ -243,20 +253,6 @@ def compile_show(
             .isoformat()
             .replace("+00:00", "Z")
         )
-
-    # Build key material (same pattern as compile.py)
-    if suite == SUITE_MLDSA44:
-        kp = mldsa44_keygen()
-        sk_raw = kp.secret_key
-        pk_raw = kp.public_key
-        private_key_for_cfg = sk_raw + pk_raw
-    else:
-        nacl_sk = signing_key_from_private_key_bytes(
-            signing_key or _CANONICAL_PUBLISHER_SEED
-        )
-        sk_raw = bytes(nacl_sk)
-        pk_raw = bytes(nacl_sk.verify_key)
-        private_key_for_cfg = sk_raw
 
     # Serialize spec as canonical source document
     # This becomes content/source.txt in the shard
@@ -287,12 +283,14 @@ def compile_show(
             source_path=source_path,
             candidates_path=candidates_path,
             out_dir=out_path,
-            private_key=private_key_for_cfg,
+            private_key=signing_key,
             publisher_id=_PUBLISHER_ID,
             publisher_name=_PUBLISHER_NAME,
             namespace=_NAMESPACE,
             created_at=timestamp,
-            suite=suite,
+            supersedes=tuple(supersedes),
+            lineage_action="supersede",
+            lineage_note="reissued show authorization",
         )
 
         ok = compile_generic_shard(cfg)
@@ -323,7 +321,7 @@ def compile_show(
     print(f"  Venue:    {venue_name}")
     print(f"  Entities: {stats.get('entities', 0)}")
     print(f"  Claims:   {stats.get('claims', 0)}")
-    print(f"  Suite:    {manifest.get('suite', suite)}")
+    print(f"  Suite:    {manifest.get('suite', '?')}")
     print(f"  Merkle:   {merkle[:32]}...")
 
 
@@ -334,30 +332,28 @@ def compile_show(
 @click.command()
 @click.argument("spec", type=click.Path(exists=True, path_type=Path))
 @click.argument("out", type=click.Path(path_type=Path))
-@click.option(
-    "--suite", "suite_name",
-    type=click.Choice([SUITE_MLDSA44, SUITE_ED25519]),
-    default=SUITE_MLDSA44, show_default=True,
-    help="Cryptographic suite.",
-)
-@click.option("--legacy", is_flag=True, default=False,
-              help=f"Alias for --suite {SUITE_ED25519}.")
-@click.option("--gold", is_flag=True,
-              help="Use canonical test key + timestamp (reproducible gold shards, ed25519).")
-def main(spec: Path, out: Path, suite_name: str, legacy: bool, gold: bool) -> None:
+@click.option("--key", "key_path", required=True,
+              type=click.Path(exists=True, dir_okay=False, path_type=Path),
+              help="Publisher secret key: a 3904-byte axm-hybrid1 blob from "
+                   "`axm-build keygen`. Kept offline, never committed.")
+@click.option("--created-at", "created_at", default=None,
+              help="RFC 3339 UTC timestamp (Z suffix). Fix it — with a fixed "
+                   "key — for a reproducible 'gold' shard.")
+@click.option("--supersedes", "supersedes", multiple=True,
+              help="sh1_ id of a prior show authorization this one replaces "
+                   "(repeatable); the kernel seals the lineage.")
+def main(spec: Path, out: Path, key_path: Path, created_at: "str | None",
+         supersedes: "tuple[str, ...]") -> None:
     """Compile a show_spec.json into a Genesis shard.
 
     Output passes axm-verify shard with a clean PASS.
     """
-    effective_suite = (
-        SUITE_ED25519 if (legacy or suite_name == SUITE_ED25519) else SUITE_MLDSA44
-    )
     try:
         compile_show(
             spec, out,
-            signing_key=_CANONICAL_PUBLISHER_SEED if gold else None,
-            timestamp=GOLD_TIMESTAMP if gold else None,
-            suite=effective_suite,
+            signing_key=key_path.read_bytes(),
+            timestamp=created_at,
+            supersedes=supersedes,
         )
     except Exception as e:
         print(f"FATAL: {e}")

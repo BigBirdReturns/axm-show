@@ -1,0 +1,50 @@
+# Enforce the promises: the show spoke compiles a spec into a shard that the
+# kernel verifier accepts, and the tamper roundtrip fails as required — on
+# every push. The kernel is installed from the pinned commit (docs/ADOPTING.md
+# §2); keep the ref in sync with the pin in README.md / pyproject.toml.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: axm-show
+
+      - uses: actions/checkout@v4
+        with:
+          repository: BigBirdReturns/axm-genesis
+          ref: fffe7cf0f1c78c8c4bea5f303099db80f7c53ba3
+          path: axm-genesis
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install kernel and spoke
+        run: |
+          python -m pip install --upgrade pip
+          pip install './axm-genesis[mldsa-compat]'
+          pip install -e './axm-show[dev]'
+
+      - name: Conformance tests
+        working-directory: axm-show
+        run: python -m pytest tests/ -v
+
+      - name: Compile + verify roundtrip
+        working-directory: axm-show
+        run: |
+          set -e
+          axm-build keygen ./ci-keys --name publisher
+          axm-show-compile examples/kemt_show_spec.json ci-shard \
+            --key ci-keys/publisher.key --created-at 2026-01-01T00:00:00Z
+          axm-verify shard ci-shard --trusted-key ci-keys/publisher.pub
+          echo "exit: $?  (0 = PASS — the kernel accepts the spoke's output)"
+
+      - name: Drift check (kernel-boundary lint, sourced from genesis)
+        run: bash axm-genesis/tools/drift-check.sh axm-show

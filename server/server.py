@@ -45,15 +45,24 @@ for p in [str(GENESIS_SRC), str(SHOW_SRC)]:
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from axm_build.sign import SUITE_MLDSA44                           # noqa: E402
+from axm_build.sign import SUITE_HYBRID1, hybrid1_keygen           # noqa: E402
 from axm_show.show_compile import compile_show                     # noqa: E402
 from axm_show.show_schema import validate_show_spec                # noqa: E402
+from axm_verify.crypto import derive_shard_id                      # noqa: E402
 from axm_verify.logic import verify_shard as _verify_shard         # noqa: E402
 
 # ── Config ────────────────────────────────────────────────────────────────────
 PORT = int(os.environ.get("PORT", 8400))
 SHARD_DIR = Path(os.environ.get("AXM_SHARD_DIR", tempfile.mkdtemp(prefix="axm_shards_")))
 SHARD_DIR.mkdir(parents=True, exist_ok=True)
+
+# This dev bridge is its own publisher: one ephemeral axm-hybrid1 identity per
+# process (never committed, proves integrity not authenticity). The public key
+# is held out of band — verification anchors against THIS file, never the
+# publisher.pub embedded in the shard under test.
+_SERVER_PUB, _SERVER_SEC = hybrid1_keygen()
+_TRUSTED_KEY = SHARD_DIR / "server-trusted.pub"
+_TRUSTED_KEY.write_bytes(_SERVER_PUB)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
 log = logging.getLogger("axm-show-server")
@@ -76,7 +85,7 @@ def _cors(resp: Response) -> Response:
 @app.route("/health")
 def health() -> Response:
     shards = [d.name for d in SHARD_DIR.iterdir() if d.is_dir()] if SHARD_DIR.exists() else []
-    return jsonify({"status": "ok", "suite": SUITE_MLDSA44, "shards": len(shards)})
+    return jsonify({"status": "ok", "suite": SUITE_HYBRID1, "shards": len(shards)})
 
 
 # ── Compile ───────────────────────────────────────────────────────────────────
@@ -99,17 +108,19 @@ def compile_endpoint() -> Response:
         compile_show(
             spec_path=None,
             out_path=out_dir,
-            suite=SUITE_MLDSA44,
+            signing_key=_SERVER_SEC,
             _spec_raw=spec_raw,
         )
 
         # Read real outputs
-        manifest = json.loads((out_dir / "manifest.json").read_bytes())
+        manifest_bytes = (out_dir / "manifest.json").read_bytes()
+        manifest = json.loads(manifest_bytes)
         source_text = (out_dir / "content" / "source.txt").read_text(encoding="utf-8")
         claims = _read_claims_with_evidence(out_dir)
         entities = _read_entity_labels(out_dir)
 
-        shard_id = manifest["shard_id"]
+        # Identity is derived, never stored (spec §9): sh1_ + BLAKE3(manifest).
+        shard_id = derive_shard_id(manifest_bytes)
         stats = manifest.get("statistics", {})
         t = {0: 0, 1: 0, 2: 0}
         for c in claims:
@@ -127,8 +138,8 @@ def compile_endpoint() -> Response:
             "status": "PASS",
             "shard_id":    shard_id,
             "merkle_root": manifest["integrity"]["merkle_root"],
-            "suite":       manifest.get("suite", SUITE_MLDSA44),
-            "timestamp":   manifest["publisher"]["created_at"],
+            "suite":       manifest.get("suite", SUITE_HYBRID1),
+            "timestamp":   manifest["metadata"]["created_at"],
             "manifest":    manifest,
             "source_text": source_text,
             "claims":      claims,
@@ -162,8 +173,9 @@ def verify_endpoint() -> Response:
         return jsonify({"status": "FAIL", "errors": [f"Shard not on disk: {shard_id[:40]}…"]}), 404
 
     try:
-        trusted_key = shard_path / "sig" / "publisher.pub"
-        result = _verify_shard(shard_path, trusted_key_path=trusted_key)
+        # Trust is anchored out of band: the server's own public key, NOT the
+        # publisher.pub embedded in the shard under test.
+        result = _verify_shard(shard_path, trusted_key_path=_TRUSTED_KEY)
 
         # Normalize the result for the React UI
         checks = result.get("checks", [])
@@ -183,29 +195,20 @@ def verify_endpoint() -> Response:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _read_parquet(path: Path) -> list[dict]:
-    """Read a Parquet file to list of dicts. Tries pyarrow first, then duckdb."""
+def _read_jsonl(path: Path) -> list[dict]:
+    """Read a canonical JSONL table to a list of dicts (one JSON object/line).
+
+    v1 shards carry canonical JSONL core tables — there is no Parquet in the
+    shard (RFC 0002). One object per line, no blank lines.
+    """
     if not path.exists():
         return []
-    try:
-        import pyarrow.parquet as pq
-        return pq.read_table(str(path)).to_pylist()
-    except ImportError:
-        pass
-    try:
-        import duckdb
-        con = duckdb.connect(":memory:")
-        rows = con.execute(f"SELECT * FROM read_parquet('{path}')").fetchall()
-        cols = [d[0] for d in con.execute(f"DESCRIBE SELECT * FROM read_parquet('{path}')").fetchall()]
-        con.close()
-        return [dict(zip(cols, row)) for row in rows]
-    except ImportError:
-        return []
+    return [json.loads(line) for line in path.read_bytes().splitlines() if line]
 
 
 def _read_entity_labels(shard_dir: Path) -> list[str]:
-    """Read entity labels from entities.parquet."""
-    entities = _read_parquet(shard_dir / "graph" / "entities.parquet")
+    """Read entity labels from graph/entities.jsonl."""
+    entities = _read_jsonl(shard_dir / "graph" / "entities.jsonl")
     return [str(e.get("label", e.get("entity_id", ""))) for e in entities]
 
 
@@ -215,10 +218,10 @@ def _read_claims_with_evidence(shard_dir: Path) -> list[dict]:
     Returns: [{ id, subject, predicate, object, object_type, tier, evidence }]
     The "evidence" field is the raw text span from source.txt.
     """
-    claims = _read_parquet(shard_dir / "graph" / "claims.parquet")
-    provenance = _read_parquet(shard_dir / "graph" / "provenance.parquet")
-    spans = _read_parquet(shard_dir / "evidence" / "spans.parquet")
-    entities = _read_parquet(shard_dir / "graph" / "entities.parquet")
+    claims = _read_jsonl(shard_dir / "graph" / "claims.jsonl")
+    provenance = _read_jsonl(shard_dir / "graph" / "provenance.jsonl")
+    spans = _read_jsonl(shard_dir / "evidence" / "spans.jsonl")
+    entities = _read_jsonl(shard_dir / "graph" / "entities.jsonl")
 
     # entity_id -> label
     eid_label = {e["entity_id"]: e["label"] for e in entities}
@@ -254,5 +257,5 @@ if __name__ == "__main__":
     print(f"  Genesis: {GENESIS_SRC}")
     print(f"  Show:    {SHOW_SRC}")
     print(f"  Shards:  {SHARD_DIR}")
-    print(f"  Suite:   {SUITE_MLDSA44}")
+    print(f"  Suite:   {SUITE_HYBRID1}")
     app.run(host="127.0.0.1", port=PORT, debug=False)
